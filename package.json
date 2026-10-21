@@ -1,0 +1,55 @@
+{
+  "name": "dsh-desktop-sidecar",
+  "version": "0.4.3",
+  "description": "Native Windows desktop control for DSH: window enumeration, UIA control tree, in-process GDI capture, offline OCR, verified clicks, Unicode typing and key chords.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "locale",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/111xjyuan/dsh-desktop-sidecar.git"
+  },
+  "homepage": "https://github.com/111xjyuan/dsh-desktop-sidecar#readme",
+  "bugs": {
+    "url": "https://github.com/111xjyuan/dsh-desktop-sidecar/issues"
+  },
+  "keywords": [
+    "dsh",
+    "desktop",
+    "windows",
+    "uia",
+    "ocr",
+    "automation",
+    "computer-use",
+    "rpa"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "koffi": "^3.3.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.1.5-rc.1"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "os": [
+    "win32"
+  ],
+  "scripts": {
+    "sync": "powershell -NoProfile -File scripts/sync.ps1"
+  }
+}
+
+

@@ -1,0 +1,5 @@
+# dsh-desktop-sidecar — 挂载一个 host 插件条目
+- insert:
+    - id: desktop-sidecar
+      name: dsh-desktop-sidecar
+      inject: [tools]
