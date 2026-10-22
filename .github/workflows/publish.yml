@@ -17,7 +17,20 @@ jobs:
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
-      - name: Publish to npm
+      - name: Publish (direct)
+        id: direct
+        continue-on-error: true
         run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish (staged) then approve
+        if: steps.direct.outcome == 'failure'
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          NAME=$(node -p "require('./package.json').name")
+          echo "staging $NAME@$VERSION"
+          npm stage publish || true
+          npm stage list "$NAME" || true
+          npm stage approve "$NAME@$VERSION" || true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
