@@ -32,7 +32,9 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           echo "::notice::staging $NAME@$VERSION"
           npm stage publish
-          npm stage list "$NAME" || true
-          npm stage approve "$NAME@$VERSION"
+          npm stage list "$NAME"
+          ID=$(npm stage list "$NAME" | awk '/^id: /{print $2; exit}')
+          echo "::notice::stage id $ID"
+          npm stage approve "$ID"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
