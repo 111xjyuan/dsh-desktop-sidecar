@@ -1,7 +1,7 @@
 {
   "name": "dsh-desktop-sidecar",
-  "version": "0.4.3",
-  "description": "Native Windows desktop control for DSH: window enumeration, UIA control tree, in-process GDI capture, offline OCR, verified clicks, Unicode typing and key chords.",
+  "version": "0.4.5",
+  "description": "DSH 桌面控制插件：让 AI 直接操作 Windows 桌面——窗口枚举、UIA 控件树、进程内 GDI 截图、离线 OCR 找字点击、UIA 调用、剪贴板输入中文、按键组合、网课自动播放。无需装驱动。Native Windows desktop control for DeepSeek Harness.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -23,14 +23,19 @@
     "url": "https://github.com/111xjyuan/dsh-desktop-sidecar/issues"
   },
   "keywords": [
+    "dsh-plugin",
     "dsh",
+    "deepseek-harness",
+    "deepseek",
     "desktop",
+    "desktop-control",
+    "computer-use",
     "windows",
     "uia",
     "ocr",
     "automation",
-    "computer-use",
-    "rpa"
+    "rpa",
+    "gui-automation"
   ],
   "license": "MIT",
   "dependencies": {
