@@ -19,9 +19,15 @@ desktop_doctor  → 环境自检，出问题先跑这个
 
 ## 3 分钟上手
 
-1. 安装（插件市场搜索 `desktop-sidecar`，或本地安装）：
+1. 安装，任选一种：
 
    ```
+   # A. npm（已发布，推荐）
+   plugin_manager install_bundle dsh-desktop-sidecar
+
+   # B. 插件市场：搜 desktop-sidecar
+
+   # C. 本地源码（开发用）
    plugin_manager install_bundle file:<本目录绝对路径>
    ```
 
