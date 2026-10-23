@@ -1,8 +1,21 @@
 # dsh-desktop-sidecar
 
-给 DeepSeek Harness 装上「手」：原生 Windows 桌面控制。不依赖 Python、不下载驱动、不弹窗口。
+给 DeepSeek Harness 装上「手」：原生 Windows 桌面控制。**不依赖 Python、不下载驱动、不弹窗口、不走 MCP。**
 
 在任意 Windows 10/11 应用里**看屏幕、读文字、点按钮、打字、按快捷键**——包括微信、Office、浏览器、网课播放器这些没有自动化接口的软件。
+
+## 和同类方案的区别
+
+| | 本项目 | MCP + UIA 方案（如 dsh-computer-use-win） | CUA/视觉方案 |
+|---|---|---|---|
+| 安装 | npm 一个包 | 需另装 MCP 客户端 + 桥 | 需下载 ~60MB 驱动二进制 |
+| 运行时 | 零外部依赖（koffi 直调 Win32） | Python/PowerShell 子进程 | 独立驱动进程 |
+| 读界面 | UIA 控件树 **或** 离线 OCR | 只有 UIA | 只有截图（靠视觉模型） |
+| 微信/Electron/Qt | ✅ OCR 兜底可用 | ❌ UIA 树为空 | ✅ 但 token 贵 |
+| 点击校验 | ✅ 点完自动比对像素 | ❌ | ❌ |
+| 环境自检 | `desktop_doctor` 四项体检 | ❌ | ❌ |
+
+一句话：**有 UIA 用 UIA（精确、后台、省 token），没有就自动降级到 OCR + 坐标点击**——不用你判断。
 
 ```
 desktop_windows → 现在有哪些窗口
