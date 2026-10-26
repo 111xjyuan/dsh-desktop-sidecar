@@ -1,0 +1,10 @@
+npm notice Approving staged package 651d1c26-2c26-41f0-9cef-81f3e251df6d
+npm notice npm tokens that bypass 2FA are being restricted for account changes and direct publishing. Learn how to prepare: https://gh.io/npm-gat-bypass2fa-deprecation
+npm error code EOTP
+npm error This operation requires a one-time password.
+npm error Open this URL in your browser to authenticate:
+npm error   https://www.npmjs.com/auth/cli/***
+npm error
+npm error After authenticating, your token can be retrieved from:
+npm error   https://registry.npmjs.org/-/v1/done?authId=***
+npm error A complete log of this run can be found in: C:\Users\xjy\AppData\Local\npm-cache\_logs\2026-10-26T13_55_23_333Z-debug-0.log
