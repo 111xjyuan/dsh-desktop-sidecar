@@ -1,2 +1,4 @@
 ﻿*.tgz
 release-notes.md
+approve.log
+npm-debug.log*
