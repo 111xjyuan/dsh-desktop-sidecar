@@ -17,18 +17,30 @@
 
 一句话：**有 UIA 用 UIA（精确、后台、省 token），没有就自动降级到 OCR + 坐标点击**——不用你判断。
 
+> **不需要视觉模型也能用。** 截图会作为图片返回给支持看图的模型，但每一条能力都有纯文本路径（UIA 控件树 / 离线 OCR / 坐标），所以文本模型照样能跑完整流程——这是本项目和「截图转视觉模型」类方案的根本区别。
+
 ```
-desktop_windows → 现在有哪些窗口
-desktop_tree    → 这个窗口有哪些控件（UIA，含名字/角色/能力）
-desktop_invoke  → 直接触发控件（不移动鼠标、不需要窗口在前台）
-desktop_read    → 窗口里写了什么（离线 OCR，带坐标）
-desktop_capture → 截图（可直接喂给模型看）
-desktop_click   → 按文字或坐标点击（点击后像素校验）
-desktop_type    → 输入中文（剪贴板 + 真 Ctrl+V，稳）
-desktop_key     → 按键 / 组合键
-desktop_course  → 网课自动播放（帧差判播放 + 自动下一节）
-desktop_doctor  → 环境自检，出问题先跑这个
+desktop_windows  → 现在有哪些窗口
+desktop_tree     → 这个窗口有哪些控件（UIA，带编号索引，可直接点）
+desktop_invoke   → 直接触发控件（不移动鼠标、不需要窗口在前台）
+desktop_read     → 窗口里写了什么（离线 OCR，带坐标）
+desktop_capture  → 截图：直接作为图片返回，带坐标尺 + 缩放契约，画面没变就不重复发
+desktop_click    → 点控件编号（带身份校验）/ 点文字 / 点坐标（点后像素校验）
+desktop_sequence → 批量：一次调用跑多步（dryRun / stopOnError / Esc 中止）
+desktop_type     → 输入中文（剪贴板 + 真 Ctrl+V，稳）
+desktop_key      → 按键 / 组合键
+desktop_course   → 网课自动播放（帧差判播放 + 自动下一节）
+desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / 输入控件）
 ```
+
+### 0.5.0 更新（对标 dsh-pilot 后补齐）
+
+- **DPI 感知**：启动即声明 per-monitor v2，并在 `desktop_doctor` 里体检——125%/150% 缩放下坐标不再偏。
+- **截图直接给模型看**：`desktop_capture` 现在返回 image block（不再让你多调一次读图），图上叠了坐标尺（顶部 x、左侧 y，单位是客户区像素）。
+- **帧去重**：同一窗口画面没变时返回 `unchanged:true` 且不重复附图，省 token。
+- **批量**：`desktop_sequence` 一次调用跑多步，支持 `dryRun`、`stopOnError`、步骤上限 24，按住 **Esc** 可随时中止。
+- **UIA 索引点击 + 身份校验**：`desktop_tree` 返回编号，`desktop_click{control:N, expect:{role,name}}` 会重读控件树核对身份，控件挪位就拒点而不是点错。
+- **控件过滤**：`meaningfulOnly`（默认开）把装饰性容器滤掉并给出 `controlTotal / filteredOut`，几百个元素降到几十个；有名字的 `Pane` 放行（原生对话框）。
 
 ## 3 分钟上手
 
