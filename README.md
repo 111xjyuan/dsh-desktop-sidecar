@@ -33,6 +33,14 @@ desktop_course   → 网课自动播放（帧差判播放 + 自动下一节）
 desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / 输入控件）
 ```
 
+### 0.5.3 更新（修 issue #3 #4）
+
+- **`desktop_invoke` 不再猜**：名字完全相同的控件优先；同名或子串命中多个时**一个都不点**，返回 `ambiguous:true` + `candidates` 列表，让你改用精确名字或加 `role`。新增 `match: auto|exact|substring` 与 `role` 参数。
+- **`desktop_click` 支持按名字点**：`{name:"按钮文字", role:"Button"}`，点击时才定位控件，不像 `control:N` 那样会因界面变化而失效。
+- **`+` 键终于能按了**：`desktop_key{"key":"+"}` / `"ctrl++"` 以前报 unknown key，现在按 Shift+ 正确打出加号。
+- **`desktop_doctor` 的 DPI 不再误报**：改为查询进程真实 DPI 感知级别（`GetProcessDpiAwareness`）。宿主已预设时 Setter 返回 false 属正常，不再判失败。
+- **`desktop_capture` 参数说明**：`x/y/width/height` 只在区域截图时生效，给了 `window` 就按整窗。
+
 ### 0.5.0 更新（对标 dsh-pilot 后补齐）
 
 - **DPI 感知**：启动即声明 per-monitor v2，并在 `desktop_doctor` 里体检——125%/150% 缩放下坐标不再偏。
@@ -72,7 +80,7 @@ desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / �
 
 | 应用类型 | 识别方式 | 说明 |
 |---|---|---|
-| 记事本、Office、资源管理器、设置、WinUI 应用 | **UIA 控件树** | `desktop_tree` 拿到按钮/菜单的名字与 `Invoke` 能力，`desktop_invoke` 直接触发——不移动鼠标、不需要前台，最稳也最省 token |
+| 记事本、Office、资源管理器、设置、WinUI 应用 | **UIA 控件树** | `desktop_tree` 拿到按钮/菜单的名字与 `Invoke` 能力，`desktop_invoke` 直接触发——不移动鼠标、不需要前台，最稳也最省 token；要点击就先 `desktop_click{name,role}`（按名字，不会过期） |
 | 微信、VS Code、Discord、Electron/Qt 自绘界面 | **OCR + 坐标点击** | 这些应用不实现 UIA，`desktop_tree` 会返回空并自动附一段 OCR 摘要；用 `desktop_read` 找字、`desktop_click` 的 `text` 参数按字点击 |
 
 经验法则：**能用 `desktop_invoke` 就别用 `desktop_click`；能按文字点就别按坐标点。**
