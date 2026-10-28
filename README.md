@@ -1,31 +1,33 @@
 # dsh-desktop-sidecar
 
-给 DeepSeek Harness 装上「手」：原生 Windows 桌面控制。**不依赖 Python、不下载驱动、不弹窗口、不走 MCP。**
+给 DeepSeek Harness 加一双「手」：让 AI 在 Windows 上真正操作你的电脑——看屏幕、读文字、点按钮、打字、按快捷键，包括微信、Office、浏览器、网课播放器这些没有自动化接口的软件。
 
-在任意 Windows 10/11 应用里**看屏幕、读文字、点按钮、打字、按快捷键**——包括微信、Office、浏览器、网课播放器这些没有自动化接口的软件。
+装一个 npm 包就能用，不需要另外装 Python、驱动或中间服务。
 
-## 和同类方案的区别
+## 写在前面
 
-| | 本项目 | MCP + UIA 方案（如 dsh-computer-use-win） | CUA/视觉方案 |
-|---|---|---|---|
-| 安装 | npm 一个包 | 需另装 MCP 客户端 + 桥 | 需下载 ~60MB 驱动二进制 |
-| 运行时 | 零外部依赖（koffi 直调 Win32） | Python/PowerShell 子进程 | 独立驱动进程 |
-| 读界面 | UIA 控件树 **或** 离线 OCR | 只有 UIA | 只有截图（靠视觉模型） |
-| 微信/Electron/Qt | ✅ OCR 兜底可用 | ❌ UIA 树为空 | ✅ 但 token 贵 |
-| 点击校验 | ✅ 点完自动比对像素 | ❌ | ❌ |
-| 环境自检 | `desktop_doctor` 四项体检 | ❌ | ❌ |
+这个插件是我自己用 DSH 时做的：有些事明明「让它帮我点一下」就完了，却还得自己动手，于是动手写了它。
 
-一句话：**有 UIA 用 UIA（精确、后台、省 token），没有就自动降级到 OCR + 坐标点击**——不用你判断。
+我不是专业做这个的，代码是一个人业余时间写的，能力和精力都有限，肯定还有没考虑周全的地方。你如果在用的时候遇到 bug、或者觉得哪里别扭，欢迎来提 [Issue](https://github.com/111xjyuan/dsh-desktop-sidecar/issues)——你的反馈是它变好的主要来源。功能建议也欢迎，我不一定都能做，但会认真看。
 
-> **不需要视觉模型也能用。** 截图会作为图片返回给支持看图的模型，但每一条能力都有纯文本路径（UIA 控件树 / 离线 OCR / 坐标），所以文本模型照样能跑完整流程——这是本项目和「截图转视觉模型」类方案的根本区别。
+**现在它能做的：**
+
+- 列出当前有哪些窗口，找到你要操作的那个
+- 读出窗口里的文字（Windows 自带离线 OCR，中文优先）和控件结构
+- 点按钮、点文字、点坐标——点完会截图比对，界面没变就重试或告诉你原因
+- 输入中文（走剪贴板，稳）、按任意组合键
+- 一次调用跑完一串步骤，中途可以按 Esc 停下
+- 网课自动播放：判断是否在播、自动切下一节
+
+## 工具一览
 
 ```
 desktop_windows  → 现在有哪些窗口
-desktop_tree     → 这个窗口有哪些控件（UIA，带编号索引，可直接点）
+desktop_tree     → 这个窗口有哪些控件（UIA 控件树，带编号索引，可直接点）
 desktop_invoke   → 直接触发控件（不移动鼠标、不需要窗口在前台）
 desktop_read     → 窗口里写了什么（离线 OCR，带坐标）
 desktop_capture  → 截图：直接作为图片返回，带坐标尺 + 缩放契约，画面没变就不重复发
-desktop_click    → 点控件编号（带身份校验）/ 点文字 / 点坐标（点后像素校验）
+desktop_click    → 点控件（编号或名字）/ 点文字 / 点坐标（点后像素校验）
 desktop_sequence → 批量：一次调用跑多步（dryRun / stopOnError / Esc 中止）
 desktop_type     → 输入中文（剪贴板 + 真 Ctrl+V，稳）
 desktop_key      → 按键 / 组合键
@@ -33,7 +35,22 @@ desktop_course   → 网课自动播放（帧差判播放 + 自动下一节）
 desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / 输入控件）
 ```
 
-### 0.5.3 更新（修 issue #3 #4）
+## 它是怎么做的
+
+同一件事，Windows 上通常有两条路，插件会自动选：
+
+| 应用类型 | 识别方式 | 说明 |
+|---|---|---|
+| 记事本、Office、资源管理器、设置、WinUI 应用 | **UIA 控件树** | `desktop_tree` 拿到按钮/菜单的名字与能力，`desktop_invoke` 直接触发——不移动鼠标、不需要前台，最稳也最省 token；要点击就先 `desktop_click{name,role}`（按名字，不会过期） |
+| 微信、VS Code、Discord、Electron/Qt 自绘界面 | **OCR + 坐标点击** | 这些应用不实现 UIA，`desktop_tree` 会返回空并自动附一段 OCR 摘要；用 `desktop_read` 找字、`desktop_click` 的 `text` 参数按字点击 |
+
+经验法则：**能用 `desktop_invoke` 就别用 `desktop_click`；能按文字点就别按坐标点。**
+
+截图会作为图片返回给支持看图的模型，但每条能力都留了纯文本路径（控件树 / 离线 OCR / 坐标），所以纯文本模型也能跑完整流程。
+
+## 更新记录
+
+### 0.5.3（修 issue #3 #4）
 
 - **`desktop_invoke` 不再猜**：名字完全相同的控件优先；同名或子串命中多个时**一个都不点**，返回 `ambiguous:true` + `candidates` 列表，让你改用精确名字或加 `role`。新增 `match: auto|exact|substring` 与 `role` 参数。
 - **`desktop_click` 支持按名字点**：`{name:"按钮文字", role:"Button"}`，点击时才定位控件，不像 `control:N` 那样会因界面变化而失效。
@@ -41,21 +58,21 @@ desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / �
 - **`desktop_doctor` 的 DPI 不再误报**：改为查询进程真实 DPI 感知级别（`GetProcessDpiAwareness`）。宿主已预设时 Setter 返回 false 属正常，不再判失败。
 - **`desktop_capture` 参数说明**：`x/y/width/height` 只在区域截图时生效，给了 `window` 就按整窗。
 
-### 0.5.0 更新（对标 dsh-pilot 后补齐）
+### 0.5.0（补齐自检与批量）
 
 - **DPI 感知**：启动即声明 per-monitor v2，并在 `desktop_doctor` 里体检——125%/150% 缩放下坐标不再偏。
-- **截图直接给模型看**：`desktop_capture` 现在返回 image block（不再让你多调一次读图），图上叠了坐标尺（顶部 x、左侧 y，单位是客户区像素）。
+- **截图直接给模型看**：`desktop_capture` 返回 image block，图上叠了坐标尺（顶部 x、左侧 y，单位是客户区像素）。
 - **帧去重**：同一窗口画面没变时返回 `unchanged:true` 且不重复附图，省 token。
 - **批量**：`desktop_sequence` 一次调用跑多步，支持 `dryRun`、`stopOnError`、步骤上限 24，按住 **Esc** 可随时中止。
-- **UIA 索引点击 + 身份校验**：`desktop_tree` 返回编号，`desktop_click{control:N, expect:{role,name}}` 会重读控件树核对身份，控件挪位就拒点而不是点错。
-- **控件过滤**：`meaningfulOnly`（默认开）把装饰性容器滤掉并给出 `controlTotal / filteredOut`，几百个元素降到几十个；有名字的 `Pane` 放行（原生对话框）。
+- **控件索引点击 + 身份校验**：`desktop_tree` 返回编号，`desktop_click{control:N, expect:{role,name}}` 会重读控件树核对身份，控件挪位就拒点而不是点错。
+- **控件过滤**：`meaningfulOnly`（默认开）把装饰性容器滤掉并给出 `controlTotal / filteredOut`，几百个元素降到几十个。
 
 ## 3 分钟上手
 
 1. 安装，任选一种：
 
    ```
-   # A. npm（已发布，推荐）
+   # A. npm（推荐）
    plugin_manager install_bundle dsh-desktop-sidecar
 
    # B. 插件市场：搜 desktop-sidecar
@@ -75,15 +92,6 @@ desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / �
    > 打开记事本，写一句“你好，世界”
 
    模型会依次走 `desktop_windows` → `desktop_type` → `desktop_read` 验证。
-
-## 两条路线（很重要）
-
-| 应用类型 | 识别方式 | 说明 |
-|---|---|---|
-| 记事本、Office、资源管理器、设置、WinUI 应用 | **UIA 控件树** | `desktop_tree` 拿到按钮/菜单的名字与 `Invoke` 能力，`desktop_invoke` 直接触发——不移动鼠标、不需要前台，最稳也最省 token；要点击就先 `desktop_click{name,role}`（按名字，不会过期） |
-| 微信、VS Code、Discord、Electron/Qt 自绘界面 | **OCR + 坐标点击** | 这些应用不实现 UIA，`desktop_tree` 会返回空并自动附一段 OCR 摘要；用 `desktop_read` 找字、`desktop_click` 的 `text` 参数按字点击 |
-
-经验法则：**能用 `desktop_invoke` 就别用 `desktop_click`；能按文字点就别按坐标点。**
 
 ## 常见问题
 
