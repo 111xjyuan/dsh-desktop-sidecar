@@ -4,6 +4,10 @@
 
 装一个 npm 包就能用，不需要另外装 Python、驱动或中间服务。
 
+操作时屏幕底部会出现一条状态条，用户按 Esc 可以随时叫停：
+
+![状态条](docs/hud.png)
+
 ## 写在前面
 
 这个插件是我自己用 DSH 时做的：有些事明明「让它帮我点一下」就完了，却还得自己动手，于是动手写了它。
@@ -18,6 +22,8 @@
 - 输入中文（走剪贴板，稳）、按任意组合键
 - 一次调用跑完一串步骤，中途可以按 Esc 停下
 - 网课自动播放：判断是否在播、自动切下一节
+- 每次操作都有屏幕提示 + 操作日志，随时能查它到底点了哪儿
+- 锁屏、UAC 提权确认这类系统安全界面一律拒绝，不会乱按
 
 ## 工具一览
 
@@ -32,7 +38,8 @@ desktop_sequence → 批量：一次调用跑多步（dryRun / stopOnError / Esc
 desktop_type     → 输入中文（剪贴板 + 真 Ctrl+V，稳）
 desktop_key      → 按键 / 组合键
 desktop_course   → 网课自动播放（帧差判播放 + 自动下一节）
-desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / 输入控件）
+desktop_log      → 操作日志：每次点击/输入/按键都记了一条，可回看可清空
+desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / 输入控件 / 状态条 / 安全桌面）
 ```
 
 ## 它是怎么做的
@@ -48,7 +55,32 @@ desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / �
 
 截图会作为图片返回给支持看图的模型，但每条能力都留了纯文本路径（控件树 / 离线 OCR / 坐标），所以纯文本模型也能跑完整流程。
 
+真实场景里它是这样干活的——发微信（`desktop_click` 按文字定位 → `desktop_type` 粘贴 → `desktop_key` 回车，点完会比对像素确认界面真的变了）：
+
+![发微信](docs/demo-wechat.png)
+
+遇到没有接口的网课页，用离线 OCR 读出题目和选项，再按坐标点：
+
+![读网课](docs/demo-ocr.png)
+
+### 操作时的屏幕提示与日志
+
+- **状态条**：只要它真的要动鼠标键盘，屏幕底部就会出现「DSH 正在操作这台电脑」，第二行是当前动作，右下角是批量任务的进度；1.4 秒没有新动作自动收起。它不抢焦点、鼠标可以穿透。
+- **Esc 中止**：批量任务、盯课过程中按住 Esc，当前这一步做完就停，返回 `cancelled:true`。
+- **操作日志**：每次点击/输入/按键都会记一条（时间、工具、窗口、坐标、结果、是否重试），用 `desktop_log` 回看：`{"limit": 30}`，`{"clear": true}` 归档并清空。文件在 `%TEMP%/dsh-sidecar/actions.jsonl`。
+- **安全桌面拦截**：锁屏、UAC 提权确认、切换用户这些系统安全界面，所有模拟输入都会被拒绝并返回 `refused: secure desktop`——不会去按「是」，也不会往锁屏密码框里打字。
+
 ## 更新记录
+
+### 0.5.4（让你看得见它在做什么）
+
+- **屏幕状态条**：真正操作时屏幕底部出现提示条（进程内 GDI 自绘，不装任何东西、不抢焦点、鼠标穿透），空闲 1.4 秒自动收起。
+- **Esc 随时中止**：`desktop_sequence` / `desktop_course` 跑长任务时按 Esc 就地停下，返回 `cancelled:true`。
+- **操作日志 + `desktop_log`**：每次点击/输入/按键都记一条，可回看最近 N 条、可归档清空。出了「它到底点了哪儿」这种问题，先看这里。
+- **安全桌面拦截**：锁屏 / UAC / 切换用户界面一律拒绝操作（`refused: secure desktop`）。
+- **点空了会自动重新定位**：按文字点击后界面没变时，重新 OCR 找一次再点，而不是对着老坐标傻点。
+- **新增技能说明** `skills/desktop-sidecar/SKILL.md`：告诉模型先看后动、能用控件就别用坐标。
+- `desktop_doctor` 增加状态条、操作日志、安全桌面三项自检。
 
 ### 0.5.3（修 issue #3 #4）
 
@@ -133,6 +165,22 @@ powershell -NoProfile -File scripts/sync.ps1
 改完 `lib/` 后在 DSH 插件面板「禁用 → 启用」即可热重载，无需重启。
 
 依赖：`koffi`（原生 FFI）；peer `@deepseek-ai/dsh-tools >= 0.1.5-rc.1`。
+
+## English
+
+**dsh-desktop-sidecar** gives DeepSeek Harness a pair of hands on Windows: it lists windows, reads text with the built-in offline OCR, presses UIA controls by name, clicks by text or coordinates (with pixel-diff verification), types Chinese through the clipboard, and runs multi-step sequences — including apps with no automation API such as WeChat, Office and course players.
+
+- Native Win32 via `koffi`: no Python, no drivers, no helper service.
+- Every mutating action shows a small "DSH is controlling this computer" bar on screen; hold `Esc` to abort a sequence.
+- Every action is logged (`desktop_log`), so you can always see what it did.
+- Secure desktop (lock screen / UAC) is refused, never automated.
+- `desktop_doctor` self-checks platform, DPI awareness, monitors, OCR, foreground lock and more.
+
+```
+dsh plugin add dsh-desktop-sidecar
+```
+
+Requires Windows 10/11. Feedback and bug reports are very welcome — see [Issues](https://github.com/111xjyuan/dsh-desktop-sidecar/issues).
 
 ## 许可
 
