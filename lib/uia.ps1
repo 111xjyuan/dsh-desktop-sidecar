@@ -6,6 +6,8 @@ param(
   [string]$Match = '',
   [string]$MatchMode = 'auto',
   [string]$Role = '',
+  [string]$Value = '',
+  [switch]$Focused,
   [switch]$Find,
   [switch]$Text
 )
@@ -59,6 +61,83 @@ function ActionPatternName($action) {
 }
 
 $wantPat = ActionPatternName $Action
+
+# ---- 直接写值（ValuePattern.SetValue）：最快、不动剪贴板、不抢焦点 ----
+if ($Action -eq 'setvalue') {
+  $r = @{ ok = $false; via = 'value'; wrote = $false; readback = ''; role = ''; name = '' }
+  $el = $null
+  try {
+    if ($Match -ne '') {
+      $q = $Match.ToLower()
+      $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+      foreach ($c in $all) {
+        $n = ''
+        try { $n = [string]$c.Current.Name } catch { }
+        $vp0 = $null
+        $hasVal = $false
+        try { $hasVal = $c.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$vp0) } catch { }
+        if ($hasVal -and $n -and $n.ToLower().Contains($q)) { $el = $c; break }
+      }
+    } else {
+      $el = [System.Windows.Automation.AutomationElement]::FocusedElement
+      # 焦点元素必须真的属于这个窗口，否则宁可不写（防止写进别的程序）
+      $inside = $false
+      $cur = $el
+      for ($i = 0; $i -lt 40 -and $cur; $i++) {
+        try { if ($cur.Equals($root)) { $inside = $true; break } } catch { }
+        try { $cur = $walker.GetParent($cur) } catch { $cur = $null }
+      }
+      if (-not $inside) {
+        # 焦点不在这个窗口：退而求其次，找窗口里唯一一个可写控件（全在窗口范围内，安全）
+        $edits = New-Object System.Collections.ArrayList
+        $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+        foreach ($c in $all) {
+          $vp0 = $null
+          $hasVal = $false
+          try { $hasVal = $c.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$vp0) } catch { }
+          if (-not $hasVal) { continue }
+          $ro = $true
+          try { $ro = [bool]$vp0.Current.IsReadOnly } catch { }
+          if ($ro) { continue }
+          $nm = ''
+          try { $nm = [string]$c.Current.Name } catch { }
+          [void]$edits.Add(@{ el = $c; name = $nm })
+        }
+        if ($edits.Count -eq 1) {
+          $el = $edits[0].el
+          $r.via = 'value-alone'
+        } elseif ($edits.Count -gt 1) {
+          $names = (@($edits | ForEach-Object { "'" + $_.name + "'" }) -join ', ')
+          $r.error = "this window has $($edits.Count) writable fields: $names — pass match to choose one"
+          ($r | ConvertTo-Json -Depth 4 -Compress); exit 0
+        } else {
+          $r.error = 'focused element is not in this window, and the window exposes no writable field'
+          ($r | ConvertTo-Json -Depth 4 -Compress); exit 0
+        }
+      }
+    }
+  } catch { }
+  if (-not $el) { '{"ok":false,"via":"value","error":"no value-pattern element (pass match, or focus the field first)"}'; exit 0 }
+  try { $r.role = [string]$el.Current.ControlType.ProgrammaticName } catch { }
+  try { $r.name = [string]$el.Current.Name } catch { }
+  $vp = $null
+  try {
+    if ($el.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$vp)) {
+      $readonly = $false
+      try { $readonly = [bool]$vp.Current.IsReadOnly } catch { }
+      if (-not $readonly) {
+        $vp.SetValue($Value)
+        $r.wrote = $true
+        try { $r.readback = [string]$vp.Current.Value } catch { }
+        $r.ok = ($r.readback -eq $Value)
+        if (-not $r.ok) { $r.error = 'readback mismatch' }
+      } else { $r.error = 'control is read-only' }
+    } else { $r.error = 'element has no ValuePattern' }
+  } catch { $r.error = $_.Exception.Message }
+  ($r | ConvertTo-Json -Depth 4 -Compress)
+  exit 0
+}
+
 
 # ---- 精确读文本（不靠 OCR）：TextPattern.DocumentRange / ValuePattern / Name ----
 if ($Text) {
