@@ -290,8 +290,14 @@ else { if ($exactPool.Count -gt 0) { $pool = $exactPool } else { $pool = $subPoo
 $matchKind = $null
 if ($pool.Count -gt 0) { $matchKind = $(if ($pool[0].exact) { 'exact' } else { 'substring' }) }
 
+$noActionReason = $null
 if ($pool.Count -gt 0) {
   $withAction = @($pool | Where-Object { $_.hasAction })
+  if ($Action -ne '' -and $withAction.Count -eq 0) {
+    $offers = @($pool | ForEach-Object { @($_.pats) } | Where-Object { $_ -ne '' } | Select-Object -Unique)
+    $next = $(if ($offers.Count -gt 0) { 'This control supports: ' + ($offers -join ', ') + '. Re-call with one of those actions, or use desktop_click to click it.' } else { 'It exposes no actionable pattern at all - click it with desktop_click{ref} instead.' })
+    $noActionReason = "'$Match' matched " + $pool.Count + " control(s) but none of them supports '" + $Action + "'. " + $next
+  }
   $pickFrom = $(if ($withAction.Count -gt 0) { $withAction } else { $pool })
   $picked = $pickFrom[0]
   $result.matchKind = $matchKind
@@ -315,6 +321,15 @@ if ($pool.Count -gt 0) {
       Select-Object -First 6 -ExpandProperty name)
   }
   if ($sug.Count -gt 0) { $result.suggestions = $sug }
+}
+
+if ($null -ne $noActionReason -and $Action -ne '') {
+  $result.ok = $false
+  $result.done = $false
+  $result.action = $Action
+  $result.error = $noActionReason
+  ($result | ConvertTo-Json -Depth 6 -Compress)
+  exit 0
 }
 
 $isAmbiguous = ($result.Contains('ambiguous') -and $result.ambiguous)

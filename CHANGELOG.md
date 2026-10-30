@@ -20,6 +20,17 @@
 - **稀疏树提示**：控件树几乎是空的时候（Chromium/Electron 常见）直接给出三条替代路线：内置浏览器工具 / `desktop_text` 读字 / 截图 OCR 点击。
 - **精简模式**：环境变量 `DSH_SIDECAR_TOOLS=lite` 只暴露 11 个常用工具，给上下文吃紧的场景。
 - **状态条移到右下角**：不再挡在屏幕中间。
+- **不再往临时目录堆截图**：`desktop_capture` 以前每次都会写一个 png 到 `%TEMP%\dsh-sidecar`，用久了会占几百 MB。现在只有传 `path` 或 `saveFile:true` 才落盘，其余情况图片只作为附件返回。
+- **同名窗口不再悄悄点错**：一个标题命中多个窗口时，仍然用最靠前的那个，但返回值会带 `windowAmbiguous` + `windowUsed` + 一句提示（只统计真正看得见的窗口，后台隐形窗不参与）。
+- **中文叫法兜底**：窗口名支持常见中文别名（记事本→Notepad、计算器→Calculator、浏览器→Edge/Chrome…），不用先查一次英文标题。
+- **窗口列表更干净**：过滤掉 DWM 隐形窗、没有任务栏入口的工具窗、无标题栏的弹出层、各硬件驱动的辅助窗口，以及本插件自己的状态条。以前 `desktop_windows` 会把这些一起吐出来（能有几十行噪音）。
+- **`desktop_launch` 返回真正的应用 pid（`appPid`）**：以前给的是启动器的 pid（`start notepad` 时是 cmd 的 pid），拿它去结束进程会杀错。
+- **`desktop_launch` 等控件树补齐**：窗口出现 ≠ 能操作。现在会再等 0.2~1.6 秒让控件树稳定下来，并带回 `controlCount` / `treeReady`，避免紧接着 `desktop_look` 只看到半棵树。带空格的文档路径也补了引号，不会被 `cmd start` 拆开。
+- **`desktop_wait kind=text` 先读无障碍文字**：能在 UIA 里找到就直接返回（快、准、不怕窗口被挡），找不到才 OCR；返回里带 `via`。
+- **点不到就明说**：控件滚出可视区（坐标为负或落在窗口外）时 `desktop_click` 直接拒绝并说明，不会点到旁边去。
+- **动作不支持时给下一步**：`desktop_invoke` 命中的控件没有该动作时，报错会说明它支持哪些动作（例如「支持 Toggle、ScrollItem」），而不是只说一句 no pattern。
+- **`desktop_sequence` 支持 `ref`**：步骤里可以直接 `{action:'click', ref:'e7'}`；dryRun 的计划文本也不再输出 `fxundefined`。
+- **`desktop_type` 打完把前台还给你**：抢了别人的前台之后会还回去。
 - **测试**：新增 `tests/unit.mjs`（纯逻辑：按键解析、锁屏判断、文字定位、PNG 编码）与 `tests/smoke.mjs`（假 host 启动 + 19 个工具的 schema/渲染检查），`npm test` 一条命令跑完。
 
 
