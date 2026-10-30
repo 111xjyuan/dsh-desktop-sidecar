@@ -36,13 +36,13 @@ desktop_read     → 窗口里写了什么（离线 OCR，带坐标）
 desktop_capture  → 截图：直接作为图片返回，带坐标尺 + 缩放契约，画面没变就不重复发
 desktop_click    → 点控件（ref / 名字 / 编号）/ 点文字 / 点坐标（点前查遮挡、点后像素+控件树双校验、点完把鼠标和前台还给你）
 desktop_sequence → 批量：一次调用跑多步（dryRun / stopOnError / Esc 中止）
-desktop_type     → 输入中文（剪贴板 + 真 Ctrl+V，稳）
+desktop_type     → 输入文字（能用 ValuePattern 就直接写值；否则真按键（Unicode），都不占你的剪贴板）
 desktop_key      → 按键 / 组合键
 desktop_wait     → 等到条件成立再继续（窗口出现/消失、文字出现、画面变化、界面安静下来）
 desktop_scroll   → 滚动（含横向；返回 changed 判断是否滚到底）
 desktop_drag     → 拖动（按下 → 分步移动 → 松开）
 desktop_window   → 窗口激活 / 最小化 / 最大化 / 还原 / 移动 / 关闭
-desktop_course   → 网课自动播放（帧差判播放 + 自动下一节）
+desktop_course   → 网课自动播放（帧差判播放 + 自动下一节；必须点名窗口，dryRun 才允许自动取前台）
 desktop_log      → 操作日志：每次点击/输入/按键都记了一条，可回看可清空
 desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / 输入控件 / 状态条 / 安全桌面）
 ```

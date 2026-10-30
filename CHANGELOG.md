@@ -1,6 +1,6 @@
 # 更新日志
 
-## 未发布（本地攒着，等攒够了一批再发）
+## 0.6.0 — 2026-10-30
 
 - **新工具 `desktop_look`**：一次调用返回「前台窗口 + 窗口列表 + 可点控件（带编号、名字、位置、可用动作）+ 可选 OCR 文字 + 可选带编号的截图」。以前要连着调 `desktop_windows` + `desktop_tree`(+`desktop_read`)，现在一步到位；截图上的编号是给模型引用的短标记（配 5x7 点阵自己画的，不依赖字体）。
 - **新工具 `desktop_launch`**：启动程序 / 打开网址或文件，并等它的窗口真的出现再返回 hwnd（少一次「等它起来」的猜测）。
@@ -105,3 +105,9 @@ desktop_click { window: "记事本", name: "保存", role: "Button" }
 ### 文档
 
 - `desktop_capture` 的 `x/y/width/height` 明确为「仅区域截图生效」，给了 `window` 就按整窗截。
+- **`desktop_course` 不再猜窗口**：它会在页面上真的点「播放 / 下一节」，所以现在必须点名窗口；只有 `dryRun:true`（只观察）才允许顺手取前台的浏览器。不点名时直接拒绝并说明，不会再对着聊天窗口盯 20 秒。
+- **`desktop_type` 不再接受空文本**：以前 `text` 缺失时会把字符串 "undefined" 真打进当前焦点窗口。现在空文本直接报错。
+- **`desktop_wait` 先校验 kind**：`kind` 写错时直接说「只能是 window | text | change | idle」，而不是先抱怨缺 window。
+- **屏幕外坐标说清楚**：`desktop_click{x:99999}` 现在报「这个点不在屏幕里（屏幕 1920x1080）」，不再说成控件滚出可视区。
+- **未知协议不再当成路径**：`desktop_launch{target:'bad://x'}` 报「不认识的协议，什么都没启动」，而不是 "not found"。
+- **`maxSteps` 小于 1 直接报错**：以前 `maxSteps:0` 会被当成默认 24 继续跑。

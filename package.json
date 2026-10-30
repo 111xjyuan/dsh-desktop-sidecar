@@ -1,6 +1,6 @@
 {
   "name": "dsh-desktop-sidecar",
-  "version": "0.5.5",
+  "version": "0.6.0",
   "description": "Windows 桌面控制插件：原生看屏幕、读文字、点控件、打字、按键——微信/Office/浏览器/网课都能操作。零外部运行时（koffi 直调 Win32），离线 OCR 兜底，点击像素校验，UIA 控件树带索引点击。Native Windows desktop control for DeepSeek Harness.",
   "type": "module",
   "main": "lib/index.js",
