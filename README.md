@@ -133,7 +133,7 @@ desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / �
 
    > 调用 `desktop_doctor`
 
-   期望 `ok: true`，四项：`platform / ocr / foreground / editable-child`。
+   期望 `ok: true`。它会检查十项：`platform / powershell / dpi / monitors / ocr / foreground / editable-child / hud / action-log / secure-desktop`，任何一项失败都会直接附上修复建议。
 
 3. 让它干一件事，例如：
 
@@ -157,6 +157,21 @@ desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / �
 
 **管理员窗口点不动？**
 Windows UIPI 限制：非提权进程不能向提权窗口发送输入。用管理员身份启动 DSH。
+
+**装完直接报错 / 工具没出现？**
+先看两件事：① 系统是不是 Windows 10 1809+ x64/arm64（`desktop_doctor` 的 `platform` 项会写清）；② `desktop_doctor` 的 `powershell` 项是否 `ok`——本插件的读控件、OCR 都靠系统自带的 PowerShell 5.1，被杀软或组策略禁掉就会全盘失效。
+
+**多显示器 / 缩放 125% 会不会点偏？**
+不会。插件启动时自己声明 per-monitor-v2 DPI 感知，所有坐标都是物理像素；截图超出虚拟屏的部分会留黑而不是整张失败，负坐标（副屏在主屏左边）也能正常截。`desktop_doctor` 的 `dpi` / `monitors` 两项会显示实际值。
+
+**会占我的剪贴板吗？**
+默认不会。`desktop_type` 现在用真实的 Unicode 按键输入，中文、日文、emoji 都能打，`clipboardTouched:false`；只有极少数忽略注入按键的程序（部分游戏、远程桌面）才自动退回 Ctrl+V 方案。
+
+**截了图会一直堆在硬盘里吗？**
+不会。只有你显式传 `path` 或 `saveFile:true` 才写文件，其余图片只回给你看；`%TEMP%\dsh-sidecar` 里超过 1 小时的历史文件也会被自动清掉。
+
+**报了什么奇怪的错，想反馈？**
+跑一次 `desktop_doctor`，把返回的 `checks` 一起贴到 issue——里面有平台、Node 版本、PowerShell 版本、DPI 级别、显示器数量、OCR 语言，基本能定位八成问题。
 
 ## 权限与安全
 

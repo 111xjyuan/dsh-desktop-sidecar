@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [ '20', '22' ]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm install --no-audit --no-fund
+      - name: unit tests (pure logic, no desktop needed)
+        run: npm run test:unit
+      - name: smoke test (registers tools, calls the OS)
+        run: npm run test:smoke
+      - name: clean install check
+        run: node verify-clean.mjs .

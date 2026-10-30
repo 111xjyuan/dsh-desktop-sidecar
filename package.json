@@ -59,5 +59,8 @@
     "test:unit": "node tests/unit.mjs",
     "test:smoke": "node tests/smoke.mjs",
     "sync": "powershell -NoProfile -File scripts/sync.ps1"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
