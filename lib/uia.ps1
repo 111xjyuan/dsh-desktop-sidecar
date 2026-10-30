@@ -231,7 +231,7 @@ function Walk($el, $level) {
       depth = $level
       pats  = @($pats)
     }
-    if (-not $needResolve) { [void]$out.Add((New-Object psobject -Property $item)) }
+    if (-not $needResolve) { [void]$out.Add((New-Object psobject -Property $item)); [void]$script:els.Add($el) }
 
     if ($Match -ne '' -and $name -ne '') {
       $ln = $name.ToLower()
@@ -263,6 +263,7 @@ function Walk($el, $level) {
   }
 }
 
+$script:els = New-Object System.Collections.ArrayList
 Walk $root 0
 
 $result = [ordered]@{
@@ -333,6 +334,41 @@ if ($null -ne $noActionReason -and $Action -ne '') {
 }
 
 $isAmbiguous = ($result.Contains('ambiguous') -and $result.ambiguous)
+
+# focusfirst：把键盘焦点放进窗口里第一个可编辑/可写文字的控件，不移动鼠标、不改光标位置。
+# 很多窗口（记事本、部分 Electron/Java 应用）刚切到前台时焦点还在框架上，直接发按键会被吞掉。
+if ($Action -eq 'focusfirst' -and -not $picked) {
+  $target = $null
+  $targetIdx = -1
+  for ($i = 0; $i -lt $out.Count; $i++) {
+    $it = $out[$i]
+    if ($it.w -le 40 -or $it.h -le 16) { continue }
+    $r = [string]$it.role
+    if (@('Edit', 'Document', 'Text', 'Pane', 'Custom') -notcontains $r) { continue }
+    if (@('Edit', 'Document') -contains $r) { $target = $it; $targetIdx = $i; break }
+    if ($null -eq $target -and ($it.pats -contains 'Value' -or $it.pats -contains 'Text')) { $target = $it; $targetIdx = $i }
+  }
+  if ($target) {
+    $focused = $false
+    try {
+      if ($targetIdx -ge 0 -and $targetIdx -lt $script:els.Count) {
+        $script:els[$targetIdx].SetFocus()
+        $focused = $true
+      }
+    } catch { $result.focusError = $_.Exception.Message }
+    $result.ok = $true
+    $result.done = $focused
+    $result.action = 'focusfirst'
+    $result.matched = [string]$target.name
+    $result.matchedRole = [string]$target.role
+    $result.rect = @{ x = [int]$target.x; y = [int]$target.y; w = [int]$target.w; h = [int]$target.h }
+  } else {
+    $result.ok = $false
+    $result.error = 'no editable control found in this window'
+  }
+  ($result | ConvertTo-Json -Depth 6 -Compress)
+  exit 0
+}
 
 if ($picked -and $Action -ne '' -and -not $isAmbiguous) {
   $el = $picked.el
