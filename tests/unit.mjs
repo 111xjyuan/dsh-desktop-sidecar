@@ -11,6 +11,16 @@ const fails = [];
 const test = (name, fn) => {
   try { fn(); passed += 1; } catch (e) { fails.push(name + ': ' + (e && e.message)); }
 };
+// 异步用例单独收集，最后统一等，避免抛出到 unhandledRejection
+const pending = [];
+const atest = (name, fn) => {
+  pending.push((async () => {
+    try { await fn(); passed += 1; } catch (e) { fails.push(name + ': ' + (e && e.message)); }
+  })());
+};
+const _unused = () => {
+
+};
 
 // ---- 按键解析 -------------------------------------------------------------
 test('single plus is the plus key itself', () => {
@@ -85,6 +95,23 @@ test('encodePng writes a valid signature and IHDR', () => {
   assert.equal(png.readUInt32BE(16), w);
   assert.equal(png.readUInt32BE(20), h);
 });
+
+
+// ---- 序列的动作名校验（写错动作不能静默通过） -----------------------------
+atest('runSequence rejects unknown actions even in dryRun', async () => {
+  const { runSequence } = await import('../lib/sequence.mjs');
+  const r = await runSequence({ steps: [{ action: 'fly' }], dryRun: true, primitives: { cancelled: () => false } });
+  assert.equal(r.ok, false);
+  assert.match(String((r.log && r.log[0] && r.log[0].error) || r.hint || ''), /unknown .*action/i);
+});
+
+atest('runSequence dryRun output has no undefined holes', async () => {
+  const { runSequence } = await import('../lib/sequence.mjs');
+  const r = await runSequence({ steps: [{ action: 'click', name: '发送' }, { action: 'type', text: 'hi' }], dryRun: true, primitives: { cancelled: () => false } });
+  assert.ok(!/undefined/.test(JSON.stringify(r.log)), 'dryRun log must not contain undefined: ' + JSON.stringify(r.log));
+});
+
+for (const p of pending) await p;
 
 // ---- 结果 ---------------------------------------------------------------
 if (fails.length) {
