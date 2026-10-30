@@ -26,19 +26,35 @@
 ## 工具一览
 
 ```
+desktop_look     → 一次调用看清当前局面：前台窗口 + 窗口列表 + 可点控件 +（可选）OCR 文字 +（可选）编号截图
 desktop_windows  → 现在有哪些窗口
+desktop_launch   → 启动程序 / 打开网址或文件，并等它的窗口出现
 desktop_tree     → 这个窗口有哪些控件（UIA 控件树，带编号索引，可直接点）
 desktop_invoke   → 直接触发控件（不移动鼠标、不需要窗口在前台）
+desktop_text     → 精确读窗口或输入框里的文字（UIA 文本，不是 OCR 猜的；读不到才退回 OCR）
 desktop_read     → 窗口里写了什么（离线 OCR，带坐标）
 desktop_capture  → 截图：直接作为图片返回，带坐标尺 + 缩放契约，画面没变就不重复发
 desktop_click    → 点控件（编号或名字）/ 点文字 / 点坐标（点后像素校验）
 desktop_sequence → 批量：一次调用跑多步（dryRun / stopOnError / Esc 中止）
 desktop_type     → 输入中文（剪贴板 + 真 Ctrl+V，稳）
 desktop_key      → 按键 / 组合键
+desktop_wait     → 等到条件成立再继续（窗口出现/消失、文字出现、画面变化、界面安静下来）
 desktop_course   → 网课自动播放（帧差判播放 + 自动下一节）
 desktop_log      → 操作日志：每次点击/输入/按键都记了一条，可回看可清空
 desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / 输入控件 / 状态条 / 安全桌面）
 ```
+
+## 推荐的用法顺序（给模型看的）
+
+```
+1. desktop_look  {image:true}          ← 先看一眼：前台是谁、有哪些控件（带编号）、可选截图
+2. 有控件名就用 desktop_invoke / desktop_click{name}   ← 不需要移动鼠标，最稳
+   没有控件（微信/Electron/Qt）就用 desktop_click{text} 或 desktop_capture 看坐标
+3. desktop_text  读结果 / desktop_wait 等结果      ← 别用固定 sleep 猜
+4. desktop_launch 启动新程序（会自动等窗口出现）
+```
+
+一条经验：**先把「等」和「看一眼」做进工具里，比让模型自己多跑几轮更准也更快。**
 
 ## 它是怎么做的
 

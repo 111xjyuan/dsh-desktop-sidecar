@@ -6,7 +6,8 @@ param(
   [string]$Match = '',
   [string]$MatchMode = 'auto',
   [string]$Role = '',
-  [switch]$Find
+  [switch]$Find,
+  [switch]$Text
 )
 
 $ErrorActionPreference = 'Stop'
@@ -58,6 +59,76 @@ function ActionPatternName($action) {
 }
 
 $wantPat = ActionPatternName $Action
+
+# ---- 精确读文本（不靠 OCR）：TextPattern.DocumentRange / ValuePattern / Name ----
+if ($Text) {
+  $el = $null
+  try {
+    if ($Match -ne '') {
+      $q = $Match.ToLower()
+      $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+      foreach ($c in $all) {
+        $n = ''
+        try { $n = [string]$c.Current.Name } catch { }
+        if ($n -and $n.ToLower().Contains($q)) { $el = $c; break }
+      }
+    } else {
+      $order = @(
+        [System.Windows.Automation.ControlType]::Document,
+        [System.Windows.Automation.ControlType]::Edit
+      )
+      foreach ($ct in $order) {
+        $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, $ct)
+        $hit = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
+        if ($hit) { $el = $hit; break }
+      }
+      if (-not $el) { $el = $root }
+    }
+  } catch { }
+
+  if (-not $el) {
+    '{"ok":false,"error":"no element found"}'
+    exit 0
+  }
+
+  $r = @{ ok = $false; via = ''; text = ''; role = ''; name = '' }
+  try { $r.role = [string]$el.Current.ControlType.ProgrammaticName } catch { }
+  try { $r.name = [string]$el.Current.Name } catch { }
+  $tp = $null
+  $vp = $null
+  try {
+    if ($el.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref]$tp)) {
+      $r.text = [string]$tp.DocumentRange.GetText(-1)
+      $r.via = 'text'
+      $r.ok = $true
+    } elseif ($el.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$vp)) {
+      $r.text = [string]$vp.Current.Value
+      $r.via = 'value'
+      $r.ok = $true
+    }
+  } catch { $r.error = $_.Exception.Message }
+  if (-not $r.ok -and -not $r.ContainsKey('error')) {
+    # 控件本身没有文本模式：退回读它的子节点文字
+    try {
+      $parts = New-Object System.Collections.ArrayList
+      $all = $el.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+      $i = 0
+      foreach ($c in $all) {
+        if ($i -ge 300) { break }
+        $i++
+        try {
+          $n = [string]$c.Current.Name
+          if ($n) { [void]$parts.Add($n) }
+        } catch { }
+      }
+      if ($parts.Count -gt 0) { $r.text = ($parts -join "`n"); $r.via = 'names'; $r.ok = $true }
+    } catch { }
+  }
+  if ($r.ok) { $r.text = ($r.text -replace "`r`n", "`n") -replace "`r", "`n" }
+  ($r | ConvertTo-Json -Depth 4 -Compress)
+  exit 0
+}
+
 
 function Walk($el, $level) {
   if ($null -eq $el) { return }
