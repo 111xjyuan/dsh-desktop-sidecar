@@ -55,6 +55,9 @@
     "win32"
   ],
   "scripts": {
+    "test": "node tests/unit.mjs && node tests/smoke.mjs",
+    "test:unit": "node tests/unit.mjs",
+    "test:smoke": "node tests/smoke.mjs",
     "sync": "powershell -NoProfile -File scripts/sync.ps1"
   }
 }

@@ -10,6 +10,18 @@
 - **`desktop_invoke` 参数更宽容**：`text` 与 `name` 互为别名，控件名误写进 `match` 也能认；报错会说清楚「要用 text 传控件名」。
 - **`desktop_type` 不再动用户的剪贴板**：粘贴前记住原来的剪贴板，输入完再恢复（长文本跳过）。
 - **读剪贴板**：新增 `win32.getClipboardText()`，`OpenClipboard` 被别的程序短暂占用时会重试。
+- **新工具 `desktop_scroll` / `desktop_drag` / `desktop_window`**：滚轮（含横向，返回 `changed` 判断是否到底）、按下-拖动-松开、窗口激活/最小化/最大化/还原/移动/关闭。此前这几件事只能靠坐标点击硬凑。
+- **免重读的点击**：`desktop_look` 给每个控件一个短引用 `ref`（如 `e7`），`desktop_click{ref:'e7'}` 直接点，省掉一次控件树读取，也不会因为树变了而点到别处。
+- **点前挡住检查**：`desktop_click` 点击前用 `WindowFromPoint` 确认落点没被别的程序盖住（通知、弹窗最常干这事），挡住就返回 `blocked:'POINT_COVERED'` 并说明是谁挡的；同一进程的菜单/弹框放行，`force:true` 可跳过。
+- **点完把电脑还给你**：默认点完把鼠标移回原处、把前台还给原来的窗口（`restore:false` 关掉），返回值带 `restored`。
+- **同一时间只做一件事**：所有会动键鼠的工具共用一把忙锁，另一路调用直接返回 `blocked:'busy'`，不会两条对话同时抢鼠标。
+- **`desktop_type` 直接写值**：输入框支持 `ValuePattern` 时直接写（后台、不动剪贴板、不等光标），写完回读校验；不支持才退回「聚焦 + 粘贴」。
+- **浏览器优先提示**：`desktop_windows` / `desktop_look` 发现浏览器窗口时会提示「网页任务优先用内置浏览器工具」，避免用像素点击去操作网页。
+- **稀疏树提示**：控件树几乎是空的时候（Chromium/Electron 常见）直接给出三条替代路线：内置浏览器工具 / `desktop_text` 读字 / 截图 OCR 点击。
+- **精简模式**：环境变量 `DSH_SIDECAR_TOOLS=lite` 只暴露 11 个常用工具，给上下文吃紧的场景。
+- **状态条移到右下角**：不再挡在屏幕中间。
+- **测试**：新增 `tests/unit.mjs`（纯逻辑：按键解析、锁屏判断、文字定位、PNG 编码）与 `tests/smoke.mjs`（假 host 启动 + 19 个工具的 schema/渲染检查），`npm test` 一条命令跑完。
+
 
 ## 0.5.5 — 2026-10-28
 

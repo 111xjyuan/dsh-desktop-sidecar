@@ -34,11 +34,14 @@ desktop_invoke   → 直接触发控件（不移动鼠标、不需要窗口在�
 desktop_text     → 精确读窗口或输入框里的文字（UIA 文本，不是 OCR 猜的；读不到才退回 OCR）
 desktop_read     → 窗口里写了什么（离线 OCR，带坐标）
 desktop_capture  → 截图：直接作为图片返回，带坐标尺 + 缩放契约，画面没变就不重复发
-desktop_click    → 点控件（编号或名字）/ 点文字 / 点坐标（点后像素校验）
+desktop_click    → 点控件（ref / 名字 / 编号）/ 点文字 / 点坐标（点前查遮挡、点后像素+控件树双校验、点完把鼠标和前台还给你）
 desktop_sequence → 批量：一次调用跑多步（dryRun / stopOnError / Esc 中止）
 desktop_type     → 输入中文（剪贴板 + 真 Ctrl+V，稳）
 desktop_key      → 按键 / 组合键
 desktop_wait     → 等到条件成立再继续（窗口出现/消失、文字出现、画面变化、界面安静下来）
+desktop_scroll   → 滚动（含横向；返回 changed 判断是否滚到底）
+desktop_drag     → 拖动（按下 → 分步移动 → 松开）
+desktop_window   → 窗口激活 / 最小化 / 最大化 / 还原 / 移动 / 关闭
 desktop_course   → 网课自动播放（帧差判播放 + 自动下一节）
 desktop_log      → 操作日志：每次点击/输入/按键都记了一条，可回看可清空
 desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / 输入控件 / 状态条 / 安全桌面）
@@ -48,8 +51,9 @@ desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / �
 
 ```
 1. desktop_look  {image:true}          ← 先看一眼：前台是谁、有哪些控件（带编号）、可选截图
-2. 有控件名就用 desktop_invoke / desktop_click{name}   ← 不需要移动鼠标，最稳
+2. 有控件名就用 desktop_invoke / desktop_click{ref}（ref 就是 look 里的 e7 这种短号）
    没有控件（微信/Electron/Qt）就用 desktop_click{text} 或 desktop_capture 看坐标
+   网页任务别用桌面点击：直接上内置浏览器工具 dsh_browser_*
 3. desktop_text  读结果 / desktop_wait 等结果      ← 别用固定 sleep 猜
 4. desktop_launch 启动新程序（会自动等窗口出现）
 ```
@@ -175,6 +179,13 @@ powershell -NoProfile -File scripts/sync.ps1
 ```
 
 改完 `lib/` 后在 DSH 插件面板「禁用 → 启用」即可热重载，无需重启。
+
+测试（不需要真的去点桌面，也不会抢你的前台窗口）：
+
+```bash
+npm test          # unit（纯逻辑）+ smoke（假 host 启动、19 个工具的 schema 和渲染）
+npm run test:unit # 只跑纯逻辑：按键解析、锁屏判断、文字定位、PNG 编码
+```
 
 依赖：`koffi`（原生 FFI）；peer `@deepseek-ai/dsh-tools >= 0.1.5-rc.1`。
 
