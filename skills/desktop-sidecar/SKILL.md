@@ -68,6 +68,8 @@ desktop_wait{window, kind:"window", title:"导出完成"}
 - `changed:false` → 画面没变。点文字区可能只是移动了光标；按钮请改 `desktop_invoke`。
 - `refused: secure desktop` → 锁屏 / UAC 确认界面，**不要重试**，请用户自己解锁或点确认。
 - 窗口标题命中多个 → 返回里带 `windowAmbiguous` 和 `windowUsed`，看它实际用了哪个。
+- `blocked:"protected-window"` → 这是系统对话框（「打开方式」等），Windows 不让程序送模拟鼠标：别再用坐标点，改用 `desktop_key`（`Tab` / `↓` 挪焦点、`Enter` 确认、`Esc` 取消）；内容可以先 `desktop_read` 读出来。
+- 目标窗口在 `desktop_windows` 里显示为「系统对话框」（`protected:true`）→ 同上，走键盘。
 
 ## 边界
 

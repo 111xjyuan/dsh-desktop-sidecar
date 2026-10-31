@@ -95,6 +95,8 @@ desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / �
 - **`desktop_launch` 默认不复用已打开的窗口**：避免把输入打进你正在编辑的那份文件；确实要复用时传 `reuse:true`。
 - **新版记事本的文字能读到了**：UIA 只给 1 个字符时自动退回 OCR，并标明 `source:"ocr"`。
 - **可以钉死目标**：`desktop_type` / `desktop_click` 支持 `expectTitle` / `expectPid`，窗口不对就直接拒绝。
+- **系统「打开方式」弹窗现在能被看到、读出来**：这类窗口既不在窗口枚举里也读不到无障碍信息，以前插件完全不知道它存在；现在会显示成「系统对话框」，`desktop_read` 能 OCR 出里面有哪些应用。
+- **点不动的窗口不再假装点到了**：这类系统弹窗 Windows 不允许程序送模拟鼠标，`desktop_click` 现在会回 `blocked:"protected-window"` 并提示改用 `Tab` / `↓` / `Enter` / `Esc`。
 
 ### 0.6.0（19 个工具 + 一批安全边界）
 
@@ -178,6 +180,9 @@ desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / �
 
 **中文变成乱码？**
 `desktop_type` 用剪贴板 + 真 Ctrl+V，正常不会乱；若目标应用禁用粘贴，改用 `desktop_key` 逐键发送。
+
+**系统的「打开方式」/「选择一个应用」这种弹窗点不动？**
+这类窗口 Windows 只让系统自己收鼠标：模拟的鼠标移上去连悬停高亮都不会出现，点击也就落不到按钮上。插件现在能做三件事——`desktop_windows` 里会把它显示成「系统对话框」（`protected:true`），`desktop_read` 能 OCR 读出里面有哪些应用，`desktop_click` 打不中时直接回 `blocked:"protected-window"` 而不是假装点到了。真要选，用键盘：`Tab` / `↓` 挪焦点、`Enter` 确认、`Esc` 关掉（已实测有效）。
 
 **管理员窗口点不动？**
 Windows UIPI 限制：非提权进程不能向提权窗口发送输入。用管理员身份启动 DSH。
