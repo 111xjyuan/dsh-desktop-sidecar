@@ -88,6 +88,14 @@ desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / �
 
 完整的逐条记录见 [CHANGELOG.md](CHANGELOG.md)，这里只挑每个版本最值得知道的几点。
 
+### 0.6.1（修 issue #5 的四个问题）
+
+- **不再把「已解锁」误判成锁屏**：会话里残留一个没有主窗口的 `LockApp.exe` 时，以前会拒绝所有输入。现在只有输入桌面不是 `Default`、或真的存在 `LogonUI` 才算锁屏。
+- **Windows 路径不再被当成网址**：`C:\Users\...\a.txt` 这种绝对路径可以直接打开（以前报 `unknown URL scheme`）。
+- **`desktop_launch` 默认不复用已打开的窗口**：避免把输入打进你正在编辑的那份文件；确实要复用时传 `reuse:true`。
+- **新版记事本的文字能读到了**：UIA 只给 1 个字符时自动退回 OCR，并标明 `source:"ocr"`。
+- **可以钉死目标**：`desktop_type` / `desktop_click` 支持 `expectTitle` / `expectPid`，窗口不对就直接拒绝。
+
 ### 0.6.0（19 个工具 + 一批安全边界）
 
 - **一次调用看清局面**：新增 `desktop_look`（前台窗口 + 窗口列表 + 可点控件 + 可选文字 + 可选编号截图），省掉以前连着调三四个工具。

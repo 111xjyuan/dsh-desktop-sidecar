@@ -59,7 +59,7 @@ test('locked only when flags say 0 AND a lock process exists', () => {
   assert.equal(decideLocked(0, { logonui: true, lockapp: false }).locked, true);
   assert.equal(decideLocked(0, { logonui: false, lockapp: true }).locked, true);
   assert.equal(decideLocked(0, { logonui: false, lockapp: false }).locked, false);
-  assert.equal(decideLocked(1, { logonui: true, lockapp: false }).locked, false);
+  assert.equal(decideLocked(1, { logonui: false, lockapp: false }).locked, false);
 });
 
 test('either lock host alone is enough, both is certain', () => {
@@ -109,6 +109,26 @@ atest('runSequence dryRun output has no undefined holes', async () => {
   const { runSequence } = await import('../lib/sequence.mjs');
   const r = await runSequence({ steps: [{ action: 'click', name: '发送' }, { action: 'type', text: 'hi' }], dryRun: true, primitives: { cancelled: () => false } });
   assert.ok(!/undefined/.test(JSON.stringify(r.log)), 'dryRun log must not contain undefined: ' + JSON.stringify(r.log));
+});
+
+
+// ---- 锁屏判断（issue #5：残留 LockApp 曾被误判成锁屏） ----------------------
+test('orphan LockApp on the Default desktop is NOT locked', () => {
+  const d = decideLocked(0, { logonui: false, lockapp: true }, 'Default');
+  assert.equal(d.locked, false);
+  assert.equal(d.source, 'desktop+orphan-lockapp');
+});
+test('LogonUI present means locked', () => {
+  assert.equal(decideLocked(0, { logonui: true, lockapp: false }, 'Default').locked, true);
+});
+test('a non-Default input desktop means locked', () => {
+  assert.equal(decideLocked(1, { logonui: false, lockapp: false }, 'Winlogon').locked, true);
+});
+test('Default desktop with no lock process is unlocked', () => {
+  assert.equal(decideLocked(0, { logonui: false, lockapp: false }, 'Default').locked, false);
+});
+test('unknown desktop name still blocks when a lock process is around', () => {
+  assert.equal(decideLocked(0, { logonui: false, lockapp: true }, null).locked, true);
 });
 
 for (const p of pending) await p;
