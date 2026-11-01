@@ -1,5 +1,22 @@
 # 更新日志
 
+## 0.7.0 — 2026-11-02
+
+### 新增：网页通道 `desktop_web`
+
+- 新增工具 `desktop_web`（第 20 个）：CDP 驱动插件内置的 Edge/Chrome，不抢鼠标、不动前台；提供 `snapshot`（标题/地址/正文 + 编号元素）、`click`、`type`、`fill`、`press`、`scroll`、`back/forward/reload`、`wait`、`screenshot`、`reset`。
+- **网页任务开始前先问用户**：`open` 不带 `mode` 时返回 `needChoice:true` 与两个选项（`internal` 内置浏览器 / `screen` 屏幕上的浏览器），不替用户做主。
+- **默认记住登录**：profile 落在 `%LOCALAPPDATA%\dsh-sidecar\web-profile`，关掉浏览器或重启 DSH 后 cookie / localStorage 都还在（关闭时先让浏览器优雅退出，避免 cookie 没落盘）；`profile:"temp"` 改回一次性，`action:"reset"` 清空。
+- 上次的浏览器若还开着，直接接管它的调试端口并复用标签页，不会重复开一堆。
+- 只接受 http/https；`file:`、`javascript:` 等一律拒绝并说明原因。
+- `press` 补齐 `code`/`keyCode`/`text`（必应这类监听 keyCode 的搜索框现在能真正回车提交）。
+
+### 本轮同时修掉的
+
+- **启动程序时不再把浮层当新窗口**：`desktop_launch` 等窗口时会把 NVIDIA Overlay 这类全屏浮层（`enabled:false`、覆盖层、输入法/系统壳进程）排除，打开文件时优先按文件名匹配标题，避免“窗口等到了、却是错的窗口”，后续输入打偏。
+- **新版记事本（标签页）读不到字**：`uia.ps1` 读文本时如果文档元素只给空串，会继续往下找真正有字的控件（`text-descendant`），不再直接退回 OCR；实测能准确读出文件内容。
+- 技能文档补充：向用户提问时必须把两种浏览器的优缺点（`good`/`bad`/`bestFor`）都摆出来，让用户自己选。
+
 ## 0.6.2 — 2026-11-01
 
 一轮自查（自查发现的都是「会不会误伤用户」的问题）：

@@ -41,6 +41,7 @@ desktop_scroll   → 滚动（含横向；返回 changed 判断是否滚到底�
 desktop_drag     → 拖动（按下 → 分步移动 → 松开）
 desktop_window   → 窗口激活 / 最小化 / 最大化 / 还原 / 移动 / 关闭
 desktop_course   → 网课自动播放（帧差判播放 + 自动下一节；必须点名窗口，dryRun 才允许自动取前台）
+desktop_web      → 网页通道：插件内置浏览器（后台跑、不动你的鼠标）或你屏幕上的浏览器，开始前会先问你用哪种
 desktop_log      → 操作日志：每次点击/输入/按键都记了一条，可回看可清空
 desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / 输入控件 / 状态条 / 安全桌面）
 ```
@@ -51,7 +52,8 @@ desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / �
 1. desktop_look  {image:true}          ← 先看一眼：前台是谁、有哪些控件（带编号）、可选截图
 2. 有控件名就用 desktop_invoke / desktop_click{ref}（ref 就是 look 里的 e7 这种短号）
    没有控件（微信/Electron/Qt）就用 desktop_click{text} 或 desktop_capture 看坐标
-   网页任务别用桌面点击：直接上内置浏览器工具 dsh_browser_*
+   网页任务：先 desktop_web{action:"open"}（不带 mode）→ 它会给你一道选择题问用户用哪种浏览器，
+             再用 snapshot 拿编号元素、click/type/fill 按编号操作；要用户盯着看才用 mode:"screen"
 3. desktop_text  读结果 / desktop_wait 等结果      ← 别用固定 sleep 猜
 4. desktop_launch 启动新程序（会自动等窗口出现）
 ```
@@ -87,6 +89,13 @@ desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / �
 ## 更新记录
 
 完整的逐条记录见 [CHANGELOG.md](CHANGELOG.md)，这里只挑每个版本最值得知道的几点。
+
+### 0.7.0（新增网页通道 desktop_web）
+
+- **新增 `desktop_web`：网页也能交给它，而且先问你**。第一次打开网页时不给 `mode`，它会返回一道选择题：用**插件内置浏览器**（后台独立窗口，不抢鼠标、不动你正在看的画面，适合登录/填表/抓信息）还是**你屏幕上的浏览器**（看得见、随时接管）。你选了它才动手。
+- **内置通道走 CDP 直连，读的是网页真实文字**：返回结构化文字快照 + 元素编号（ref），纯文本模型也能用；点击/输入按编号操作，页面跳转后重新快照即可；只接受 http/https。
+- **会记住登录**：cookie / localStorage 存在 `%LOCALAPPDATA%\dsh-sidecar\web-profile`，关掉再开、甚至重启 DSH，登录状态都还在；想用完即弃加 `profile:"temp"`，想全部清空用 `action:"reset"`。
+- 用的是独立配置目录，不动你日常浏览器的登录状态和书签。
 
 ### 0.6.2（自查修的几处）
 
@@ -233,7 +242,7 @@ powershell -NoProfile -File scripts/sync.ps1
 测试（不需要真的去点桌面，也不会抢你的前台窗口）：
 
 ```bash
-npm test          # unit（纯逻辑）+ smoke（假 host 启动、19 个工具的 schema 和渲染）
+npm test          # unit（纯逻辑）+ smoke（假 host 启动、20 个工具的 schema 和渲染）
 npm run test:unit # 只跑纯逻辑：按键解析、锁屏判断、文字定位、PNG 编码
 ```
 

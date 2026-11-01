@@ -1,10 +1,10 @@
 ---
 name: desktop-sidecar
 description: 用 desktop_* 工具直接操作这台 Windows 电脑的真实界面——看屏幕、读文字、点控件、打字、按键、滚动、拖拽、开程序、等状态。当用户要求「帮我点一下 / 打开 / 在某个软件里做某事」，或任务落在微信、QQ、Office、浏览器、网课客户端这类没有接口的软件上时使用。
-whenToUse: 用户要在本机某个软件里完成动作（发消息、填表、点按钮、切页面），或需要先看清屏幕上有什么再决定下一步。只读网页内容优先用浏览器工具；能走 HTTP/CLI 的优先走接口。桌面这条路留给「没有接口、只能像人一样点」的场合。
+whenToUse: 用户要在本机某个软件里完成动作（发消息、填表、点按钮、切页面），或需要先看清屏幕上有什么再决定下一步。网页任务走 desktop_web（先用不带 mode 的 open 让用户选内置/屏幕浏览器）；能走 HTTP/CLI 的优先走接口。桌面这条路留给「没有接口、只能像人一样点」的场合。
 metadata:
   platform: windows
-  tools: 19
+  tools: 20
 ---
 
 # 桌面操作（desktop-sidecar）
@@ -45,6 +45,31 @@ desktop_wait{window, kind:"window", title:"导出完成"}
 
 `desktop_wait` 的 `kind:"text"` 会先读无障碍文字、再退 OCR，命中会告诉你走的哪条路（`via`）。
 不要用固定 sleep 猜加载时间。
+
+## 网页任务：先问用户用哪种浏览器
+
+网页**不要**直接上桌面点击。第一步调 `desktop_web{action:"open", url}`，**故意不带 mode**：
+它会返回 `needChoice:true` 加两个选项（`internal` 内置浏览器 / `screen` 屏幕上的浏览器），每个选项都带 `good`（优点）/ `bad`（缺点）/ `bestFor`。
+
+**问用户时要把两边的优缺点都摆出来，让用户自己选**，不要替他决定、也不要只报一个方案。照这个格式说：
+
+> 网页这一步有两种做法，你挑一个：
+> **A. 内置浏览器**——优点：后台跑不抢鼠标、读真实文字不会认错、独立配置可记住登录；缺点：你现有浏览器里的登录/插件不在里面（首次要登一下），纯图片/画布页面读不到字。
+> **B. 你屏幕上的浏览器**——优点：用你平时那个，登录书签插件都在，你能看着每一步随时接手；缺点：我要模拟鼠标键盘，会抢前台、可能打断你，靠截图认字小字会认错。
+
+选完再按用户的话重调（`mode:"internal"` 或 `mode:"screen"`）。
+
+- `mode:"internal"`：后台独立浏览器，不抢鼠标、不动用户正在看的画面，适合登录、填表、抓信息。
+  ```
+  desktop_web{action:"open", mode:"internal", url:"example.com"}
+  desktop_web{action:"snapshot"}                 // 返回标题/地址/正文 + 编号元素 [1]input "用户名"
+  desktop_web{action:"type", ref:1, text:"张三"}
+  desktop_web{action:"click", ref:4}
+  desktop_web{action:"wait", waitText:"已提交"}
+  ```
+  页面一跳转，旧的 `ref` 就失效，**重新 snapshot** 再操作。填一整张表可以用 `fill{fields:[{label:"邮箱",value:"..."}]}`。
+  内置浏览器**默认记住登录**（cookie/localStorage 落在 `%LOCALAPPDATA%\dsh-sidecar\web-profile`），下次接着用；要干净环境加 `profile:"temp"`，要清空用 `action:"reset"`。
+- `mode:"screen"`：用用户自己的浏览器打开这个网址，之后走 `desktop_look` / `desktop_click` / `desktop_type`。
 
 ## 多步任务用 sequence
 

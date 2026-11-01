@@ -186,6 +186,29 @@ if ($Text) {
       $r.ok = $true
     }
   } catch { $r.error = $_.Exception.Message }
+  # 新版记事本、部分 WinUI 应用：文档元素自己有 TextPattern 却读到空串。
+  # 这时往下再找一层真正有字的控件（TextBox 等），比直接退回 OCR 准得多。
+  if ($r.text.Trim().Length -le 1) {
+    try {
+      $all = $el.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+      $i = 0
+      foreach ($c in $all) {
+        if ($i -ge 200) { break }
+        $i++
+        $t = $null
+        $v = $null
+        try {
+          if ($c.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref]$t)) {
+            $s = [string]$t.DocumentRange.GetText(-1)
+            if ($s.Trim().Length -gt 1) { $r.text = $s; $r.via = 'text-descendant'; $r.ok = $true; break }
+          } elseif ($c.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$v)) {
+            $s = [string]$v.Current.Value
+            if ($s.Trim().Length -gt 1) { $r.text = $s; $r.via = 'value-descendant'; $r.ok = $true; break }
+          }
+        } catch { }
+      }
+    } catch { }
+  }
   if (-not $r.ok -and -not $r.ContainsKey('error')) {
     # 控件本身没有文本模式：退回读它的子节点文字
     try {
