@@ -1,11 +1,13 @@
 {
   "name": "dsh-desktop-sidecar",
-  "version": "0.7.5",
-  "description": "Windows 桌面控制插件：原生看屏幕、读文字、点控件、打字、按键——微信/Office/浏览器/网课都能操作。零外部运行时（koffi 直调 Win32），离线 OCR 兜底，点击像素校验，UIA 控件树带索引点击。Native Windows desktop control for DeepSeek Harness.",
+  "version": "0.8.0",
+  "description": "Windows 桌面控制插件：让 AI 看屏幕、点按钮、打字，微信/Office/浏览器/网课都能操作；自带侧边栏「指挥台」可随时打字指挥，内置网页通道，动手前先等你停手。零外部运行时。Native Windows desktop control for DeepSeek Harness.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
-    ".": "./lib/index.js"
+    ".": "./lib/index.js",
+    "./client": "./lib/composer.js",
+    "./package.json": "./package.json"
   },
   "files": [
     "lib",
@@ -49,6 +51,12 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
     }
   },
   "os": [
