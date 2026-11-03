@@ -103,3 +103,5 @@ desktop_wait{window, kind:"window", title:"导出完成"}
 - 需要窗口能拿到前台；被系统拒绝时退回后台消息点击（部分程序不响应）。
 - 每次操作都记进 `desktop_log`，排查「它到底点了哪」先看这个。
 - OCR 依赖系统的「中文(简体)」语言包；`desktop_doctor` 的 `ocr` 项会告诉你缺不缺。
+
+- `blocked:"focus"` — 浏览器里没点输入框就打字。先 `desktop_type{ref|name}`（先点后输），或改用 `desktop_web`。

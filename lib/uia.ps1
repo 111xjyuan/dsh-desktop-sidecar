@@ -8,6 +8,7 @@ param(
   [string]$Role = '',
   [string]$Value = '',
   [switch]$Focused,
+  [switch]$FocusInfo,
   [switch]$Find,
   [switch]$Text
 )
@@ -138,6 +139,33 @@ if ($Action -eq 'setvalue') {
   exit 0
 }
 
+
+# ---- 键盘焦点在谁身上（浏览器里判断“能不能直接打字”的关键） ----
+if ($FocusInfo) {
+  $r = @{ ok = $false; inside = $false; role = ''; name = ''; rect = $null; editable = $false }
+  try {
+    $el = [System.Windows.Automation.AutomationElement]::FocusedElement
+    $cur = $el
+    for ($i = 0; $i -lt 40 -and $cur; $i++) {
+      try { if ($cur.Equals($root)) { $r.inside = $true; break } } catch { }
+      try { $cur = $walker.GetParent($cur) } catch { $cur = $null }
+    }
+    if ($el) {
+      try { $r.role = [string]$el.Current.ControlType.ProgrammaticName -replace '^ControlType\.', '' } catch { }
+      try { $r.name = [string]$el.Current.Name } catch { }
+      try {
+        $bb = $el.Current.BoundingRectangle
+        $r.rect = @{ x = [int]$bb.X; y = [int]$bb.Y; w = [int]$bb.Width; h = [int]$bb.Height }
+      } catch { }
+      $vp = $null; $tp = $null
+      try { if ($el.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$vp)) { $r.editable = -not [bool]$vp.Current.IsReadOnly } } catch { }
+      try { if (-not $r.editable -and $el.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref]$tp)) { $r.editable = $true } } catch { }
+    }
+    $r.ok = $true
+  } catch { $r.error = $_.Exception.Message }
+  ($r | ConvertTo-Json -Depth 4 -Compress)
+  exit 0
+}
 
 # ---- 精确读文本（不靠 OCR）：TextPattern.DocumentRange / ValuePattern / Name ----
 if ($Text) {
