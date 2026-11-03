@@ -105,3 +105,9 @@ desktop_wait{window, kind:"window", title:"导出完成"}
 - OCR 依赖系统的「中文(简体)」语言包；`desktop_doctor` 的 `ocr` 项会告诉你缺不缺。
 
 - `blocked:"focus"` — 浏览器里没点输入框就打字。先 `desktop_type{ref|name}`（先点后输），或改用 `desktop_web`。
+
+## 结果里的三个新字段（0.9.0）
+
+- `evidence: {channel, how, trusted}` — 这次判断的依据：`uia`（读控件文字，最准）、`ocr`（截图识字，可能有错字）、`pixels`（按坐标点，靠画面比对）、`printwindow`（窗口自己渲染的画面）。`trusted:"low"` 表示是屏幕像素，窗口被挡住时可能看错，必要时先用 `desktop_capture{window}` 复核。
+- `yielded: {waitedMs}` — 用户在动鼠标键盘，工具等了他这么久才动手。出现这个说明“不打断”生效了，不是错误。
+- `verified:false` + `warn` — 字符发出去了，但读不回输入框（读到空或读到别的控件）。**这不是失败**：用 `desktop_capture` 看一眼再决定要不要重打；只有 `ok:false` 才是真的没做到。

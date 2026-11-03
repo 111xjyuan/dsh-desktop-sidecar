@@ -6,6 +6,7 @@ import { decideLocked } from '../lib/guard.mjs';
 import { findLine } from '../lib/ocr.mjs';
 import { encodePng } from '../lib/png.mjs';
 import { runSequence } from '../lib/sequence.mjs';
+import { panelDecision } from '../lib/panel.mjs';
 
 let passed = 0;
 const fails = [];
@@ -146,6 +147,34 @@ atest('sequence stops on a user steer and carries the command', async () => {
 for (const p of pending) await p;
 
 // ---- 结果 ---------------------------------------------------------------
+// 指挥台开合策略：重点是“不许闪”——刚开不能马上收，短间隔要忍住，连续空几次才收。
+test('panel opens when the agent starts working', () => {
+  assert.equal(panelDecision({ open: false, active: true }).action, 'open');
+});
+test('panel stays closed when nothing is happening', () => {
+  assert.equal(panelDecision({ open: false, active: false }).action, 'keep');
+});
+test('panel never closes right after opening', () => {
+  const now = 100000;
+  const d = panelDecision({ open: true, active: false, idleMs: 100000, openedAt: now - 2000, now, absentPolls: 9 });
+  assert.equal(d.reason, 'just-opened');
+});
+test('panel survives a short gap between tool calls', () => {
+  const now = 100000;
+  const d = panelDecision({ open: true, active: false, idleMs: 9000, openedAt: now - 60000, now, absentPolls: 9 });
+  assert.equal(d.reason, 'short-gap');
+});
+test('panel debounces a single idle poll', () => {
+  const now = 100000;
+  const d = panelDecision({ open: true, active: false, idleMs: 60000, openedAt: now - 60000, now, absentPolls: 1 });
+  assert.equal(d.reason, 'debounce');
+});
+test('panel closes after a real idle period', () => {
+  const now = 100000;
+  const d = panelDecision({ open: true, active: false, idleMs: 60000, openedAt: now - 60000, now, absentPolls: 4 });
+  assert.equal(d.action, 'close');
+});
+
 if (fails.length) {
   console.error('FAILED ' + fails.length + ' / ' + (passed + fails.length));
   for (const f of fails) console.error('  - ' + f);
@@ -154,3 +183,36 @@ if (fails.length) {
 
 
 console.log('unit ok: ' + passed + ' tests');
+
+// 指挥台开合策略：重点是“不许闪”——刚开不能马上收，短间隔要忍住，连续空几次才收。
+atest('panel opens when the agent starts working', () => {
+  const d = panelDecision({ open: false, active: true });
+  assert.equal(d.action, 'open');
+});
+atest('panel stays closed when nothing is happening', () => {
+  const d = panelDecision({ open: false, active: false });
+  assert.equal(d.action, 'keep');
+});
+atest('panel never closes right after opening', () => {
+  const now = 100000;
+  const d = panelDecision({ open: true, active: false, idleMs: 100000, openedAt: now - 2000, now, absentPolls: 9 });
+  assert.equal(d.action, 'keep');
+  assert.equal(d.reason, 'just-opened');
+});
+atest('panel survives a short gap between tool calls', () => {
+  const now = 100000;
+  const d = panelDecision({ open: true, active: false, idleMs: 9000, openedAt: now - 60000, now, absentPolls: 9 });
+  assert.equal(d.action, 'keep');
+  assert.equal(d.reason, 'short-gap');
+});
+atest('panel debounces a single idle poll', () => {
+  const now = 100000;
+  const d = panelDecision({ open: true, active: false, idleMs: 60000, openedAt: now - 60000, now, absentPolls: 1 });
+  assert.equal(d.action, 'keep');
+  assert.equal(d.reason, 'debounce');
+});
+atest('panel closes after a real idle period', () => {
+  const now = 100000;
+  const d = panelDecision({ open: true, active: false, idleMs: 60000, openedAt: now - 60000, now, absentPolls: 4 });
+  assert.equal(d.action, 'close');
+});
