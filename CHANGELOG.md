@@ -1,3 +1,7 @@
+## 0.8.2 — 2026-11-03
+
+- 0.8.1 在 npm 上只写进了版本信息、安装包文件没传上去（`/dsh-desktop-sidecar-0.8.1.tgz` 一直 404），所以补一个 0.8.2 重新发布；代码与 0.8.1 相同（`apply()` 走 `ctx.inject`、`engines.dsh`、README Requirements）。
+
 ## 0.8.1 — 2026-11-03
 
 用 [dsh-plugin-toolkit](https://github.com/WJDdidi-1/dsh-plugin-toolkit) 体检后修的几处：
