@@ -1,6 +1,6 @@
 ## 0.8.2 — 2026-11-03
 
-- 0.8.1 在 npm 上只写进了版本信息、安装包文件没传上去（`/dsh-desktop-sidecar-0.8.1.tgz` 一直 404），所以补一个 0.8.2 重新发布；代码与 0.8.1 相同（`apply()` 走 `ctx.inject`、`engines.dsh`、README Requirements）。
+- 代码与 0.8.1 完全相同（`apply()` 走 `ctx.inject`、`engines.dsh`、README Requirements）。这一版只是为了把 npm 的 `latest` 重新指向一个已经同步完成的包：npm 11 的 staged 发布在批准之后要过几分钟安装包才可下载，0.8.1 批准后那几分钟里 `latest` 指向了一个还下不下来的 tarball。
 
 ## 0.8.1 — 2026-11-03
 
