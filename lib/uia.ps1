@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory = $true)][string]$Hwnd,
   [int]$Depth = 3,
   [int]$Max = 80,
@@ -391,13 +391,21 @@ $isAmbiguous = ($result.Contains('ambiguous') -and $result.ambiguous)
 if ($Action -eq 'focusfirst' -and -not $picked) {
   $target = $null
   $targetIdx = -1
+  $bestScore = $null
   for ($i = 0; $i -lt $out.Count; $i++) {
     $it = $out[$i]
     if ($it.w -le 40 -or $it.h -le 16) { continue }
     $r = [string]$it.role
     if (@('Edit', 'Document', 'Text', 'Pane', 'Custom') -notcontains $r) { continue }
-    if (@('Edit', 'Document') -contains $r) { $target = $it; $targetIdx = $i; break }
-    if ($null -eq $target -and ($it.pats -contains 'Value' -or $it.pats -contains 'Text')) { $target = $it; $targetIdx = $i }
+    # 浏览器里第一个 Edit 往往是顶上的地址栏；点进地址栏打字，网页里的搜索框不会变。
+    # 所以按“像不像页面里的输入框”打分：面积大 + 靠下（避开顶部工具条）优先。
+    $score = [int]$it.w * [int]$it.h
+    if ([int]$it.h -lt 30) { $score = [int]($score * 0.5) }
+    if ($it.y -lt 90) { $score = [int]($score * 0.15) }
+    if (@('Edit', 'Document') -contains $r) { $score = [int]($score * 1.6) }
+    if ($null -eq $bestScore -or $score -gt $bestScore) {
+      $target = $it; $targetIdx = $i; $bestScore = $score
+    }
   }
   if ($target) {
     $focused = $false

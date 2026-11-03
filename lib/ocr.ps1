@@ -1,4 +1,4 @@
-# dsh-screenshot-xn OCR script (Windows PowerShell 5.1 compatible).
+﻿# dsh-screenshot-xn OCR script (Windows PowerShell 5.1 compatible).
 #
 # Recognizes the text inside one PNG with the Windows built-in OCR engine
 # (`Windows.Media.Ocr`), which ships with Windows 10/11 and needs no API key,
