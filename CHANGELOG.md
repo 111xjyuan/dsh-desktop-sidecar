@@ -1,3 +1,11 @@
+## 0.8.1 — 2026-11-03
+
+用 [dsh-plugin-toolkit](https://github.com/WJDdidi-1/dsh-plugin-toolkit) 体检后修的几处：
+
+- **`apply()` 不再直接读 `ctx.tools`**：宿主在工具服务还没挂载时读到未声明的服务会让整行挂掉（`cannot get property "tools" without inject`），插件管理器里就是一个红点、工具全没了。现在优先用已经挂好的服务注册，没挂好就走 `ctx.inject(['tools','attachments'], …)` 等它。
+- `engines.dsh` 补上（`>=0.2.0`），插件市场索引才能标出可用的宿主版本。
+- README 增加 `## Requirements（运行要求）` 小节：系统、宿主、Node、PowerShell 要求，以及明确「不依赖 Python / 驱动 / 后台服务」。
+
 ## 0.8.0 — 2026-11-03
 
 ### 新增

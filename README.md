@@ -266,6 +266,14 @@ Windows UIPI 限制：非提权进程不能向提权窗口发送输入。用管�
 - 截图临时文件在 `%TEMP%\dsh-sidecar`，**超过 1 小时自动清理**。
 - 前台锁、UIPI、锁屏/安全桌面这类系统限制**不会被绕过**——这是设计选择，不是缺陷。
 
+## Requirements（运行要求）
+
+- **操作系统**：Windows 10 1809+ / Windows 11（x64 或 arm64）。macOS / Linux 不支持。
+- **DeepSeek Harness**：`>= 0.2.0`（peer：`@deepseek-ai/dsh-tools >= 0.1.5-rc.1`）。
+- **Node.js**：`>= 18`（DSH 自带，一般无需单独安装）。
+- **PowerShell 5.1**：系统自带即可（读控件树、OCR 都靠它）；被组策略或杀软禁用时插件会失效，`desktop_doctor` 的 `powershell` 项会指出。
+- **不依赖**：Python、任何驱动、任何后台服务；原生调用用 `koffi`（随包安装）。
+
 ## 平台
 
 Windows 10 1809+ / Windows 11，x64 与 arm64。
