@@ -111,3 +111,9 @@ desktop_wait{window, kind:"window", title:"导出完成"}
 - `evidence: {channel, how, trusted}` — 这次判断的依据：`uia`（读控件文字，最准）、`ocr`（截图识字，可能有错字）、`pixels`（按坐标点，靠画面比对）、`printwindow`（窗口自己渲染的画面）。`trusted:"low"` 表示是屏幕像素，窗口被挡住时可能看错，必要时先用 `desktop_capture{window}` 复核。
 - `yielded: {waitedMs}` — 用户在动鼠标键盘，工具等了他这么久才动手。出现这个说明“不打断”生效了，不是错误。
 - `verified:false` + `warn` — 字符发出去了，但读不回输入框（读到空或读到别的控件）。**这不是失败**：用 `desktop_capture` 看一眼再决定要不要重打；只有 `ok:false` 才是真的没做到。
+
+## 出问题时先要报告
+
+用户说「用不了 / 报错 / 没反应」时，先跑 `desktop_doctor{report:true}`：它会给出系统版本、缩放、OCR 语言、PowerShell 版本、权限、每项检查结果和最近失败记录，一段文本就能贴出来。比来回问五六轮快得多。
+
+失败结果里如果带 `explain`，直接按里面的 `todo` 做；`needFromUser` 非空时，是必须用户本人做的事（解锁、装语言包、用管理员身份重开、把插件加入杀软白名单），别自己硬试。

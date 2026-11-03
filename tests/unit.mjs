@@ -7,6 +7,8 @@ import { findLine } from '../lib/ocr.mjs';
 import { encodePng } from '../lib/png.mjs';
 import { runSequence } from '../lib/sequence.mjs';
 import { panelDecision } from '../lib/panel.mjs';
+import { explain, shortNotice } from '../lib/humanize.mjs';
+import { buildTuning } from '../lib/env.mjs';
 
 let passed = 0;
 const fails = [];
@@ -144,6 +146,43 @@ atest('sequence stops on a user steer and carries the command', async () => {
   assert.equal(r.ok, false);
 });
 
+// 人话报错：每个失败码都要能翻译成“发生了什么 / 要不要你动手”。
+atest('humanize explains a user-active block', () => {
+  const ex = explain({ ok: false, blocked: 'user-active' });
+  assert.ok(ex && ex.title && ex.todo, 'explain returned nothing');
+  assert.ok(ex.needFromUser === null || ex.needFromUser === false || typeof ex.needFromUser === 'string');
+});
+atest('humanize explains a missing window', () => {
+  const ex = explain({ ok: false, error: 'window handle 12345 is not available any more (it was closed or the number is stale)' });
+  assert.ok(ex && /窗口/.test(ex.title), 'got ' + JSON.stringify(ex));
+});
+atest('humanize stays quiet on success', () => {
+  assert.equal(explain({ ok: true }), null);
+});
+atest('humanize gives a one-line notice', () => {
+  const ex = explain({ ok: false, blocked: 'focus' });
+  const n = shortNotice(ex);
+  assert.ok(n && n.length <= 24, 'notice too long: ' + n);
+});
+
+// 调参：DPI 高就把 OCR 放大倍数降下来，没中文 OCR 就少切几刀。
+atest('tuning lowers ocr scale on high dpi', () => {
+  const t = buildTuning({ dpi: { scale: 2 }, ocr: { zh: true }, ps: { ok: true } });
+  assert.ok(t.ocr.scale <= 2.2, 'scale ' + t.ocr.scale);
+});
+atest('tuning reduces bands without chinese ocr', () => {
+  const t = buildTuning({ dpi: { scale: 1 }, ocr: { zh: false }, ps: { ok: true } });
+  assert.equal(t.ocr.bands, 2);
+});
+atest('tuning turns off uia when powershell is broken', () => {
+  const t = buildTuning({ dpi: { scale: 1 }, ocr: { zh: true }, ps: { ok: false } });
+  assert.equal(t.uia.preferUia, false);
+});
+atest('tuning slows down ocr when the machine is slow', () => {
+  const t = buildTuning({ dpi: { scale: 1 }, ocr: { zh: true }, ps: { ok: true }, learned: { ocrMs: 3200, focusMs: 0 } });
+  assert.equal(t.ocr.bands, 2);
+});
+
 for (const p of pending) await p;
 
 // ---- 结果 ---------------------------------------------------------------
@@ -180,6 +219,7 @@ if (fails.length) {
   for (const f of fails) console.error('  - ' + f);
   process.exit(1);
 }
+
 
 
 console.log('unit ok: ' + passed + ' tests');

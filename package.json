@@ -1,6 +1,6 @@
 {
   "name": "dsh-desktop-sidecar",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Windows 桌面控制插件：让 AI 看屏幕、点按钮、打字。不抢你的鼠标键盘、不改你的窗口状态，你随时可以在侧边栏「指挥台」打字打断它；每步都会回头核对屏幕，做不到就说做不到。零外部运行时。",
   "type": "module",
   "main": "lib/index.js",

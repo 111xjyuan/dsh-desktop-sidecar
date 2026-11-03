@@ -135,6 +135,15 @@ if (webOpen && webOpen.ok) {
   skipped('web-channel', (webOpen && (webOpen.error || webOpen.blocked)) || 'open failed');
 }
 
+// ---------- 自检报告：给用户一个能直接复制发过来的东西 ----------
+{
+  const rep = await call('desktop_doctor', { report: true });
+  const text = String(rep.report || '');
+  check('doctor-report-has-version', /插件版本：\d+\.\d+\.\d+/.test(text), { head: text.slice(0, 60) });
+  check('doctor-report-lists-checks', /检查项：/.test(text) && text.includes('platform'), { len: text.length });
+  check('doctor-report-mentions-env', /环境：/.test(text), null);
+}
+
 // ---------- 输出 ----------
 for (const line of results) console.log(line);
 console.log('');
