@@ -1,3 +1,16 @@
+## 0.7.2 — 2026-11-03
+
+这一版只做一件事：**不再动你的窗口，也不再悄悄丢字**。来自两条用户反馈和一轮对比调研（CursorTouch/Windows-MCP）。
+
+### 修
+- **绝不改窗口状态**：`focusWindow` / `focusWindowForce` / `ensureForeground` 里所有 `ShowWindow(SW_RESTORE)`、`SWP_SHOWWINDOW` 全删。你最大化的不还原、最小化的不弹出、全屏的不退全屏。要动只能显式要求（`restoreWindow:true` 或 `desktop_window{action:"restore"}`）。
+- **最小化的窗口直接说清楚**：点击/打字/按键遇到最小化窗口返回 `minimized:true` + 去问用户的提示，而不是自己把它弹出来。
+- **抢前台用三重 AttachThreadInput**（当前线程 + 前台线程 + 目标线程）并把结果验证到真的变前台为止（最多等 1 秒）。以前会出现“窗口到前面了、键盘焦点还在上一个窗口”，字就打进了别处。
+- **长文本改走剪贴板**：≥20 字直接粘贴（一次落地，不丢字），结束后把你的剪贴板还回去；短文本仍走真按键，不碰剪贴板。
+- **网址启动不再假失败**：浏览器已开着时，链接只是变成新标签页；以前等不到新窗口就报 `no new window appeared`，现在返回 `ok:true, reused:true` 并说明真相。
+- **按窗口名找窗口更稳**：进程名匹配优先于标题包含。`window:"DeepSeek Harness"` 以前可能点到浏览器里标题含这句话的标签页，现在先认进程名，再认前台。
+- `desktop_capture` 返回值补 `displays`（多屏的虚拟桌面矩形）并在 note 里写清缩放换算规则。
+
 # 更新日志
 
 ## 0.7.1 — 2026-11-03
