@@ -5,6 +5,7 @@ import { parseKeyChord } from '../lib/keys.mjs';
 import { decideLocked } from '../lib/guard.mjs';
 import { findLine } from '../lib/ocr.mjs';
 import { encodePng } from '../lib/png.mjs';
+import { runSequence } from '../lib/sequence.mjs';
 
 let passed = 0;
 const fails = [];
@@ -131,6 +132,17 @@ test('unknown desktop name still blocks when a lock process is around', () => {
   assert.equal(decideLocked(0, { logonui: false, lockapp: true }, null).locked, true);
 });
 
+atest('sequence stops on a user steer and carries the command', async () => {
+  const r = await runSequence({
+    steps: [{ action: 'wait', ms: 1 }, { action: 'wait', ms: 1 }],
+    primitives: { cancelled: () => false, pollSteer: () => ({ command: '先补第 3 题' }), execute: async () => ({ ok: true }) },
+  });
+  assert.equal(r.interrupted, true);
+  assert.equal(r.executed, 1);
+  assert.equal(r.steer.command, '先补第 3 题');
+  assert.equal(r.ok, false);
+});
+
 for (const p of pending) await p;
 
 // ---- 结果 ---------------------------------------------------------------
@@ -139,4 +151,6 @@ if (fails.length) {
   for (const f of fails) console.error('  - ' + f);
   process.exit(1);
 }
+
+
 console.log('unit ok: ' + passed + ' tests');

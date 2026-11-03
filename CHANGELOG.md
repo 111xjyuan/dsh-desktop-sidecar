@@ -1,3 +1,13 @@
+## 0.7.5 — 2026-11-03
+
+### 新增
+- **`desktop_steer`：你随时可以中途指挥我。** 它开一个普通文本文件（`%LOCALAPPDATA%\dsh-sidecar\steer.txt`），你在里面打字、Ctrl+S；`desktop_sequence` / `desktop_course` 会在每一步之间读它，看到新指令立刻停下并返回 `interrupted:true` + `steer.command`，我按你的话改完再继续。写完停手 0.7 秒算定稿，不会把你打到一半的字当指令。
+- **不抢你的鼠标键盘。** 所有会动鼠标键盘的工具（click/type/key/scroll/drag/invoke/sequence/course）动手前先看系统“最后一次输入”有多久：你正在操作就等你停手（默认 0.7 秒安静、最多等 5 秒），等不到就返回 `blocked:"user-active"` 并说明“我什么都没做”。参数 `yieldToUser`（默认 true）/ `quietMs` / `maxWaitMs` 可调。
+
+### 说明
+- 插件自己的动作会打标记，不会被误当成“用户还在操作”。
+- 这套检测用的是 `GetLastInputInfo`，不安装任何驱动、不挂钩子。
+
 ## 0.7.4 — 2026-11-03
 
 - **`desktop_type` 点完之后再确认一次焦点**：用 `x/y/fx/fy`、`ref`、`name` 或按文字点击去定位输入框时，点完会问系统“键盘焦点现在落在哪个控件上”，落在按钮/列表/空白处就**直接停下并说明**（返回 `blocked:"focus"`，带上那个控件的名字），不再把字符发到空气里还报成功。
