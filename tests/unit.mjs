@@ -220,6 +220,18 @@ atest('fitBudget keeps head and tail', async () => {
   const r = fitBudget(list, 10);
   assert(r.kept.length === 10 && r.hidden === 90 && r.kept[r.kept.length - 1] === 100);
 });
+
+atest('channelFor: 学习结论要够保守', async () => {
+  const { channelFor } = await import('../lib/env.mjs');
+  assert.equal(channelFor('x.exe', {}), null, 'no stats -> null');
+  assert.equal(channelFor('x.exe', { 'x.exe': { uia: 4, ocr: 0, pixels: 0 } }), null, '4 次样本不够');
+  assert.equal(channelFor('x.exe', { 'x.exe': { uia: 5, ocr: 0, pixels: 0 } }), 'uia', 'uia 领先 -> uia');
+  assert.equal(channelFor('x.exe', { 'x.exe': { uia: 4, ocr: 4, pixels: 0 } }), null, '打平 -> 不下结论');
+  assert.equal(channelFor('x.exe', { 'x.exe': { uia: 0, ocr: 3, pixels: 0 } }), null, '3 次样本不够下结论');
+  assert.equal(channelFor('x.exe', { 'x.exe': { uia: 0, ocr: 5, pixels: 0 } }), 'image', '只能看图 -> image');
+  assert.equal(channelFor('X.EXE', { 'x.exe': { uia: 5, ocr: 0, pixels: 0 } }), 'uia', '大小写不敏感');
+});
+
 for (const p of pending) await p;
 
 // ---- 结果 ---------------------------------------------------------------
