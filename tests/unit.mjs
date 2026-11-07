@@ -183,6 +183,43 @@ atest('tuning slows down ocr when the machine is slow', () => {
   assert.equal(t.ocr.bands, 2);
 });
 
+atest('digest: same screen keeps ids and says so', async () => {
+  const { screenDigest } = await import('../lib/screen.mjs');
+  const a = [{ role: 'Button', name: 'OK', rect: { x: 1, y: 2, w: 3, h: 4 }, pats: ['Invoke'] }];
+  const d = screenDigest(a, a.map((x) => ({ ...x })));
+  assert(d.mode === 'same' && d.sameCount === 1 && /编号不变/.test(d.note));
+});
+atest('digest: few changes only lists them', async () => {
+  const { screenDigest } = await import('../lib/screen.mjs');
+  const base = [1, 2, 3, 4, 5, 6].map((i) => ({ role: 'Button', name: 'b' + i, rect: { x: i, y: 0, w: 10, h: 10 }, pats: [] }));
+  const now = base.map((x, i) => (i === 2 ? { ...x, name: 'changed' } : x));
+  const d = screenDigest(base, now);
+  assert(d.mode === 'diff' && d.changed.length === 1 && d.changed[0] === 3);
+});
+atest('digest: too many changes falls back to full', async () => {
+  const { screenDigest } = await import('../lib/screen.mjs');
+  const base = [1, 2, 3, 4].map((i) => ({ role: 'Button', name: 'b' + i, rect: { x: i, y: 0, w: 10, h: 10 }, pats: [] }));
+  const now = base.map((x) => ({ ...x, name: x.name + 'z' }));
+  assert(screenDigest(base, now).mode === 'full');
+});
+atest('verdict: unverifiable never claims "no change"', async () => {
+  const { verdict } = await import('../lib/screen.mjs');
+  const v = verdict({ comparable: false });
+  assert(v.comparable === false && v.changed === false && /无法验证/.test(v.note));
+  assert(/没有明显变化/.test(verdict({ comparable: true, changed: false }).note));
+  assert(/到头/.test(verdict({ comparable: true, changed: false, scrolled: true }).note));
+});
+atest('poorTree flags a nearly empty tree', async () => {
+  const { poorTree } = await import('../lib/screen.mjs');
+  assert(poorTree([{ name: 'x' }]).poor === true);
+  assert(poorTree(Array.from({ length: 12 }, (_, i) => ({ name: 'n' + i }))).poor === false);
+});
+atest('fitBudget keeps head and tail', async () => {
+  const { fitBudget } = await import('../lib/screen.mjs');
+  const list = Array.from({ length: 100 }, (_, i) => ({ n: i }));
+  const r = fitBudget(list, 10);
+  assert(r.kept.length === 10 && r.hidden === 90 && r.kept[r.kept.length - 1] === 100);
+});
 for (const p of pending) await p;
 
 // ---- 结果 ---------------------------------------------------------------
