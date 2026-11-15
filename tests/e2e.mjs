@@ -46,6 +46,16 @@ if (!np) {
 if (!np || !np.hwnd) { skipped('notepad-suite', 'no clean notepad window'); }
 else {
   const W = String(np.hwnd);
+  const fresh = await call('desktop_windows', {});
+  const me = (fresh.windows || []).find((w) => String(w.hwnd) === W);
+  if (me && me.minimized) {
+    const rs = await call('desktop_window', { window: W, action: 'restore' });
+    if (!rs || rs.ok === false) skipped('notepad-suite', 'notepad could not be restored');
+    await delay(250);
+    // 还原≠到前台：有的窗口还原后仍在别的窗口后面，先激活再打，模拟真人“点开它”。
+    await call('desktop_window', { window: W, action: 'activate' });
+    await delay(200);
+  }
   // 先清空，保证起点干净
   await call('desktop_key', { window: W, key: 'ctrl+a', yieldToUser: false });
   await call('desktop_key', { window: W, key: 'delete', yieldToUser: false });
@@ -60,21 +70,21 @@ else {
   check('uia-readback', String(rd.text || '').includes('ABC123'), { source: rd.source, len: String(rd.text || '').length });
 
   const neg = await call('desktop_click', { window: W, x: 200, y: 120, expect: '屏幕上绝对没有这句话QQQ', yieldToUser: false });
-  check('negative-control-fails', neg.ok === false && neg.verifyFailed === true, neg.verify && neg.verify.reason);
+  check('negative-control-fails', neg.ok === false && neg.verifyFailed === true, { reason: neg.verify && neg.verify.reason, ok: neg.ok, err: neg.error, minimized: neg.minimized });
 
   const reg = await call('desktop_click', { window: W, x: 200, y: 120, expect: 'ABC123', expectRegion: { x: 0, y: 0, w: 60, h: 40 }, yieldToUser: false });
-  check('region-verification-filters', reg.ok === false && reg.verifyFailed === true, reg.verify && reg.verify.region);
+  check('region-verification-filters', reg.ok === false && reg.verifyFailed === true, { region: reg.verify && reg.verify.region, ok: reg.ok, err: reg.error });
 
   const clear = await call('desktop_key', { window: W, key: 'ctrl+a', yieldToUser: false });
   const del = await call('desktop_key', { window: W, key: 'delete', yieldToUser: false });
   const rd2 = await call('desktop_text', { window: W, limit: 2000 });
-  check('keys-actually-work', clear.ok && del.ok && !String(rd2.text || '').includes('ABC123'), { after: String(rd2.text || '').slice(0, 40) });
+  check('keys-actually-work', clear.ok && del.ok && !String(rd2.text || '').includes('ABC123'), { after: String(rd2.text || '').slice(0, 40), clearOk: clear.ok, delOk: del.ok, err: clear.error || del.error });
 
   const lk = await call('desktop_look', { window: W, max: 12 });
-  check('look-reads-controls', lk.ok === true && Array.isArray(lk.controls), { n: lk.controlCount });
+  check('look-reads-controls', lk.ok === true && Array.isArray(lk.controls), { n: lk.controlCount, ok: lk.ok, err: lk.error });
 
   const cap = await call('desktop_capture', { window: W, image: false, path: 'C:/Users/xjy/AppData/Local/Temp/e2e-np.png' });
-  check('capture-has-scale-and-rect', !!(cap.rect && cap.scale && cap.width > 0), { w: cap.width, scale: cap.scale });
+  check('capture-has-scale-and-rect', !!(cap.rect && cap.scale && cap.width > 0), { w: cap.width, scale: cap.scale, ok: cap.ok, err: cap.error, minimized: cap.minimized });
 
   // 最小化后不许偷偷把窗口还原，也不许截一张黑图糊弄
   await call('desktop_window', { window: W, action: 'minimize' });
@@ -133,6 +143,65 @@ if (webOpen && webOpen.ok) {
   await call('desktop_web', { action: 'close' });
 } else {
   skipped('web-channel', (webOpen && (webOpen.error || webOpen.blocked)) || 'open failed');
+}
+
+
+// 收尾：把这次骗来的记事本窗口还原（最小化状态是会跨轮次传染的）
+try { await call('desktop_window', { window: String((np && np.hwnd) || ''), action: 'restore' }); } catch {}
+
+// ---------- 5c. 坐标口径：click 的 x/y 是「客户区像素」，不是「窗口像素」 ----------
+// 反馈里三次实测都是“传进去的点 = 屏幕点 - 8”，因为浏览器标题栏+标签栏被算了进去。
+// 这条测试锁住它：dryRun 报出来的落点必须正好是 clientOriginScreen + 传入值。
+{
+  const ws2 = await call('desktop_windows', {});
+  const cand = (ws2.windows || []).find((w) => !w.minimized && w.bounds && w.bounds.width > 320 && w.bounds.height > 240);
+  if (!cand) skipped('client-coordinates', 'no suitable window');
+  else {
+    const W = String(cand.hwnd);
+    const p1 = await call('desktop_click', { window: W, x: 10, y: 12, dryRun: true, yieldToUser: false });
+    const origin = p1 && p1.clientOriginScreen;
+    check('click-point-uses-client-origin',
+      !!(p1 && p1.ok && p1.dryRun && origin && p1.at && p1.at.x === origin.x + 10 && p1.at.y === origin.y + 12),
+      { at: p1 && p1.at, origin, title: cand.title });
+
+    const p2 = await call('desktop_click', { window: W, fx: 0.5, fy: 0.5, dryRun: true, yieldToUser: false });
+    const size = p2 && p2.clientSize;
+    check('click-fraction-uses-client-size',
+      !!(p2 && p2.ok && size && p2.at && p2.at.x === origin.x + Math.round(0.5 * size.w) && p2.at.y === origin.y + Math.round(0.5 * size.h)),
+      { at: p2 && p2.at, size });
+
+    // 越界必须直接拒绝，而不是悄悄点到一个不相干的像素上
+    const bad = await call('desktop_click', { window: W, x: (size && size.w ? size.w : 99999) + 40, y: 5, dryRun: true, yieldToUser: false });
+    check('click-outside-client-refused', !!(bad && bad.ok === false && /outside the client area/.test(String(bad.error || ''))), { error: bad && bad.error });
+
+    // 同一套口径也要在截图/读字的结果里说清楚，否则又得靠猜
+    const cap2 = await call('desktop_capture', { window: W, image: false });
+    check('capture-says-whose-pixels',
+      !!(cap2 && cap2.rectKind && /rectKind|WINDOW pixels|CLIENT pixels|SCREEN pixels/.test(String(cap2.note || '')))
+      && (cap2.rectKind !== 'window' || !!(cap2.clientOriginScreen && cap2.clientOffsetInRect)),
+      { rectKind: cap2 && cap2.rectKind, hasOffset: !!(cap2 && cap2.clientOffsetInRect) });
+
+    const rd2 = await call('desktop_read', { window: W, limit: 3 });
+    check('ocr-read-maps-to-screen',
+      !!(rd2 && rd2.coordinates && rd2.coordinates.rect && /screenX = rect\.x \+ line\.x/.test(String(rd2.coordinates.formula || ''))),
+      { coords: rd2 && rd2.coordinates && { kind: rd2.coordinates.rectKind, scale: rd2.coordinates.scale } });
+  }
+  // 浏览器里“焦点不可用就拒打”的老毛病：参数上必须留一个明确的逃生口
+  const props = (n) => ((tools.get(n).parameters || {}).properties || {});
+  check('type-has-force-escape', !!props('desktop_type').force, Object.keys(props('desktop_type')).length);
+  check('click-has-dry-run', !!props('desktop_click').dryRun, null);
+}
+
+// ---------- 5d. 操作日志：一次调用写一条，且能读回来 ----------
+{
+  const before = await call('desktop_log', { limit: 1 });
+  await call('desktop_windows', {});
+  await delay(120);
+  const after = await call('desktop_log', { limit: 5 });
+  const grew = Number(after.total || 0) > Number(before.total || 0);
+  const newest = (after.entries || [])[0];
+  check('action-log-records-every-call', grew && !!newest && !!newest.tool, { before: before.total, after: after.total, newest: newest && newest.tool });
+  check('action-log-reports-writable', after.writable === true, { writable: after.writable, dir: after.dir, hint: after.hint });
 }
 
 // ---------- 自检报告：给用户一个能直接复制发过来的东西 ----------

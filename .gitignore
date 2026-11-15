@@ -3,4 +3,5 @@ release-notes.md
 approve.log
 npm-debug.log*
 node_modules
+.tmp/
 *.log
