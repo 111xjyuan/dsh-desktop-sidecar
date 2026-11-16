@@ -7,6 +7,8 @@ import { findLine } from '../lib/ocr.mjs';
 import { encodePng } from '../lib/png.mjs';
 import { runSequence } from '../lib/sequence.mjs';
 import { panelDecision } from '../lib/panel.mjs';
+import { beginCall, endCall, logTool } from '../lib/activity.mjs';
+import { readLog } from '../lib/actions-log.mjs';
 import { explain, shortNotice } from '../lib/humanize.mjs';
 import { buildTuning } from '../lib/env.mjs';
 
@@ -263,15 +265,34 @@ test('panel closes after a real idle period', () => {
   assert.equal(d.action, 'close');
 });
 
-if (fails.length) {
-  console.error('FAILED ' + fails.length + ' / ' + (passed + fails.length));
-  for (const f of fails) console.error('  - ' + f);
-  process.exit(1);
-}
 
 
+// ---- 操作日志：一次工具调用只写一行 ----------------------------------------------
+// 以前各分支各记一笔，一次点击留下 2~3 行，看日志的人以为点了好几次。
+atest('branch logs of one call merge into a single entry', async () => {
+  const before = readLog(1).total;
+  beginCall('unit-check');
+  const a = logTool('unit-check', { step: 'click', ms: 1 });
+  const b = logTool('unit-check', { step: 'settle', ms: 2, tag: String(Math.random()) });
+  assert.equal(a.buffered, true);
+  assert.equal(b.buffered, true);
+  const entry = endCall({ tool: 'unit-check', ok: true, ms: 7 });
+  const after = readLog(5);
+  assert.equal(after.total, before + 1);
+  assert.equal(entry.logged, true);
+  const newest = after.entries[0];
+  assert.equal(newest.tool, 'unit-check');
+  assert.equal(Array.isArray(newest.steps), true);
+  assert.equal(newest.steps.length, 2);
+  assert.equal(newest.ms, 7);
+});
 
-console.log('unit ok: ' + passed + ' tests');
+atest('logs written outside a call still go straight to the file', async () => {
+  const before = readLog(1).total;
+  const r = logTool('unit-outside', { ok: true, tag: String(Math.random()) });
+  assert.equal(r.buffered, undefined);
+  assert.equal(readLog(1).total, before + 1);
+});
 
 // 指挥台开合策略：重点是“不许闪”——刚开不能马上收，短间隔要忍住，连续空几次才收。
 atest('panel opens when the agent starts working', () => {
@@ -305,3 +326,13 @@ atest('panel closes after a real idle period', () => {
   const d = panelDecision({ open: true, active: false, idleMs: 60000, openedAt: now - 60000, now, absentPolls: 4 });
   assert.equal(d.action, 'close');
 });
+
+// 异步用例（atest）统一等完再结算：以前这里在它们跑之前就结算并 exit，
+// 后面的用例即使失败也永远不会被报出来。
+await Promise.all(pending);
+if (fails.length) {
+  console.error('FAILED ' + fails.length + ' / ' + (passed + fails.length));
+  for (const f of fails) console.error('  - ' + f);
+  process.exit(1);
+}
+console.log('unit ok: ' + passed + ' tests');

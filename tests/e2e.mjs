@@ -198,9 +198,11 @@ try { await call('desktop_window', { window: String((np && np.hwnd) || ''), acti
   await call('desktop_windows', {});
   await delay(120);
   const after = await call('desktop_log', { limit: 5 });
-  const grew = Number(after.total || 0) > Number(before.total || 0);
+  const delta = Number(after.total || 0) - Number(before.total || 0);
   const newest = (after.entries || [])[0];
-  check('action-log-records-every-call', grew && !!newest && !!newest.tool, { before: before.total, after: after.total, newest: newest && newest.tool });
+  check('action-log-records-every-call', delta >= 1 && !!newest && !!newest.tool, { before: before.total, after: after.total, delta, newest: newest && newest.tool });
+  // 一次调用一行：两次调用最多多出两行（以前一次点击会写 2~3 行）
+  check('action-log-one-line-per-call', delta <= 2, { delta });
   check('action-log-reports-writable', after.writable === true, { writable: after.writable, dir: after.dir, hint: after.hint });
 }
 
