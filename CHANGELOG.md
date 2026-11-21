@@ -1,6 +1,6 @@
 ## 0.13.4 — 2026-11-21
 
-点得准，是这一版唯一的目标（参考 windows-mcp / UIAutomation 的做法：点元素，不点像素）。
+点得准，是这一版唯一的目标（思路：用 Windows 的 UIAutomation 无障碍接口，点元素而不是点像素）。
 
 - **点击前先问系统「这一点是谁」**（UIA 命中测试 `AutomationElement.FromPoint`）：坐标点击会先做一次体检，
   结果放在 `hit` 里（角色 / 名字 / 矩形 / 能不能点 / 支持哪些动作）。
@@ -257,7 +257,7 @@
 
 ## 0.7.2 — 2026-11-03
 
-这一版只做一件事：**不再动你的窗口，也不再悄悄丢字**。来自两条用户反馈和一轮对比调研（CursorTouch/Windows-MCP）。
+这一版只做一件事：**不再动你的窗口，也不再悄悄丢字**。来自两条用户反馈和一轮同类工具调研。
 
 ### 修
 - **绝不改窗口状态**：`focusWindow` / `focusWindowForce` / `ensureForeground` 里所有 `ShowWindow(SW_RESTORE)`、`SWP_SHOWWINDOW` 全删。你最大化的不还原、最小化的不弹出、全屏的不退全屏。要动只能显式要求（`restoreWindow:true` 或 `desktop_window{action:"restore"}`）。
