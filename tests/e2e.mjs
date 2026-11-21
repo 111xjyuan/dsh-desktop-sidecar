@@ -22,6 +22,21 @@ function check(name, cond, detail) {
 function skipped(name, why) { skip++; results.push('SKIP ' + name + ' (' + why + ')'); }
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// 刚解锁/刚登录的几秒里，合成输入会被系统吞掉（测试会假红）。
+// 先等桌面真的能用：锁屏解除 + 目标窗口稳定。
+const waitDesktopReady = async () => {
+  const { lockState } = await import('../lib/guard.mjs');
+  const deadline = Date.now() + 90000;
+  while (Date.now() < deadline) {
+    let st = null;
+    try { st = lockState(); } catch {}
+    if (st && st.locked === false) break;
+    await delay(1500);
+  }
+  await delay(1200);
+};
+await waitDesktopReady();
+
 // ---------- 1. 注册表与自检 ----------
 check('registry-23-tools', tools.size === 23, { size: tools.size });
 const shapeless = [...tools.values()].filter((t) => !t.description || !t.parameters);

@@ -14,9 +14,11 @@
   ``desktop_page{click:"Learn more"}`` 一句话点元素，或者把返回的 `at` 交给 `desktop_click{screenX,screenY}`。
   页面没暴露无障碍时，明确回 `page-not-exposed` 并给出两条替代路（开 `--force-renderer-accessibility`，或 `desktop_pick` / `desktop_click{text}`）。
 - **`desktop_click{name}` 也能点网页元素**：控件树找不到时，自动改按页面元素表匹配名字，取元素中心点（不猜坐标）。
+- **前台窗口改成直接从屏幕取图**：WinUI3（Win11 记事本）/ Chromium 的 PrintWindow 常返回旧帧，表现是“窗口里明明有字，OCR 说 0 个字符”，选项行一行都认不出来。现在目标窗口在前台时抓屏幕，被盖住时才让窗口自己画。
 - **`desktop_pick` 零结果会再读一次**：刚敲完字/刚翻页时窗口可能还没重绘，OCR 读到旧画面；现在等 320ms 重读，而不是直接说“屏幕上没有选项”。
 - **修 `desktop_pick` 记的最近点击点**：改回屏幕坐标（`desktop_type` 靠它“先点进去再打字”，之前存窗口相对坐标会点偏）。
 - `desktop_click` 新增 `snap:"auto"|"off"`；`dryRun` 现在也会回 `hit` / `snapped` / `blankPoint`，可以先算后点。
+- **判断抽成纯函数并加单测**：`lib/hit.mjs` 的 `classifyHit()` / `worthRetry()` 把“只对真控件吸附、容器永不吸附、文本区不算空白、超大/细线控件不吸附”写死，配 6 条单元测试（unit 55 → 61），防止以后改回去又点空白。
 
 ## 0.13.3 — 2026-11-21
 
