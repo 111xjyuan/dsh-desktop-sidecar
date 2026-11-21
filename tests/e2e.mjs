@@ -23,7 +23,7 @@ function skipped(name, why) { skip++; results.push('SKIP ' + name + ' (' + why +
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------- 1. 注册表与自检 ----------
-check('registry-21-tools', tools.size === 21, { size: tools.size });
+check('registry-22-tools', tools.size === 22, { size: tools.size });
 const shapeless = [...tools.values()].filter((t) => !t.description || !t.parameters);
 check('registry-every-tool-documented', shapeless.length === 0, shapeless.map((t) => t.name));
 const doc = await call('desktop_doctor', {});
@@ -80,6 +80,22 @@ else {
   const rd2 = await call('desktop_text', { window: W, limit: 2000 });
   check('keys-actually-work', clear.ok && del.ok && !String(rd2.text || '').includes('ABC123'), { after: String(rd2.text || '').slice(0, 40), clearOk: clear.ok, delOk: del.ok, err: clear.error || del.error });
 
+  // 选项题：给标签就点整行中心（真实考试里模型以前只能猜像素，结果点进两行之间的空白）
+  const opts = 'A、苹果\nB、香蕉\nC、橘子\nD、葡萄';
+  const ot = await call('desktop_type', { window: W, text: opts, yieldToUser: false });
+  const pickDry = await call('desktop_pick', { window: W, labels: ['B'], dryRun: true, yieldToUser: false });
+  const seen = (pickDry.rowsSeen || []).map((r) => r.label);
+  check('pick-finds-option-rows', ot.ok === true && ['A', 'B', 'C', 'D'].every((l) => seen.includes(l)), { seen, err: pickDry.error, saw: pickDry.saw });
+  const pickB = await call('desktop_pick', { window: W, labels: ['B'], yieldToUser: false });
+  const pickAt = pickB.picks && pickB.picks[0] && pickB.picks[0].at;
+  check('pick-clicks-row-centre', pickB.ok === true && !!pickAt && pickAt.y > 0, { picks: pickB.picks && pickB.picks.length, at: pickAt, err: pickB.error });
+  const pickBad = await call('desktop_pick', { window: W, labels: ['E'], yieldToUser: false });
+  check('pick-rejects-label-not-in-choices', pickBad.ok === false && /not in choices/i.test(String(pickBad.error || '')), { error: pickBad.error });
+  await call('desktop_key', { window: W, key: 'ctrl+a', yieldToUser: false });
+  await call('desktop_key', { window: W, key: 'delete', yieldToUser: false });
+  const seqSettle = await call('desktop_sequence', { window: W, yieldToUser: false, steps: [{ action: 'click', x: 120, y: 80, settle: true, settleTimeout: 900 }] });
+  check('sequence-settle-waits-for-stable-area', seqSettle.ok === true && !!(seqSettle.log && seqSettle.log[0] && seqSettle.log[0].settled === true), { log: seqSettle.log && seqSettle.log[0], err: seqSettle.error });
+
   const lk = await call('desktop_look', { window: W, max: 12 });
   check('look-reads-controls', lk.ok === true && Array.isArray(lk.controls), { n: lk.controlCount, ok: lk.ok, err: lk.error });
 
@@ -113,6 +129,20 @@ check('drag-offscreen-rejected', e4.ok === false, { error: e4.error });
 
 const e5 = await call('desktop_type', { window: '329374', text: '' });
 check('empty-type-rejected', e5.ok === false, { error: e5.error || e5.threw });
+
+// 用户正在打字的 DSH 窗口：既不能关，也不能最小化（以前模型为了腾地方把它最小化，窗口直接消失）
+const allWins = (await call('desktop_windows', {})).windows || [];
+const hostWin = allWins.find((w) => /deepseek harness/i.test(String(w.title || '') + ' ' + String(w.app || '')));
+const hostMin = hostWin ? await call('desktop_window', { window: String(hostWin.hwnd), action: 'minimize' }) : null;
+check('host-window-cannot-be-minimized', !hostWin || (!!hostMin && hostMin.ok === false && hostMin.refused === true), { title: hostWin && hostWin.title, res: hostMin && (hostMin.error || hostMin.ok) });
+const hostClose = hostWin ? await call('desktop_window', { window: String(hostWin.hwnd), action: 'close' }) : null;
+check('host-window-cannot-be-closed', !hostWin || (!!hostClose && hostClose.ok === false && hostClose.refused === true), { res: hostClose && (hostClose.error || hostClose.ok) });
+
+// 默认值要“有耐心”：用户犹豫一下不算打扰，而且打字时要能识别出来
+const clickProps = ((tools.get('desktop_click').parameters || {}).properties) || {};
+check('yield-defaults-are-patient', /1500/.test(String((clickProps.quietMs || {}).description || '')), clickProps.quietMs);
+const pickProps = ((tools.get('desktop_pick').parameters || {}).properties) || {};
+check('pick-is-an-input-tool', !!pickProps.labels && /label/i.test(String(pickProps.labels.description || '')), Object.keys(pickProps));
 
 const seq = await call('desktop_sequence', { steps: [{ action: 'fly' }], dryRun: true });
 check('sequence-rejects-unknown-action', seq.ok === false, { executed: seq.executed });

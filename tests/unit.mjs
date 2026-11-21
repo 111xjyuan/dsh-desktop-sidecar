@@ -11,6 +11,7 @@ import { beginCall, endCall, logTool } from '../lib/activity.mjs';
 import { readLog, clearLog } from '../lib/actions-log.mjs';
 import { explain, shortNotice } from '../lib/humanize.mjs';
 import { buildTuning } from '../lib/env.mjs';
+import { normLabel, matchLabel, rowsFromLines, interpolateRow, splitMergedLine } from '../lib/pick.mjs';
 
 let passed = 0;
 const fails = [];
@@ -327,6 +328,86 @@ atest('panel closes after a real idle period', () => {
   const now = 100000;
   const d = panelDecision({ open: true, active: false, idleMs: 60000, openedAt: now - 60000, now, absentPolls: 4 });
   assert.equal(d.action, 'close');
+});
+
+
+// ---- 选项行识别（desktop_pick 的核心逻辑）--------------------------------
+test('a labelled row is recognised by its label', () => {
+  assert.equal(matchLabel('B、顺序存储结构', ['A', 'B', 'C', 'D']), 'B');
+  assert.equal(matchLabel('C．链式存储', ['A', 'B', 'C', 'D']), 'C');
+  assert.equal(matchLabel('D. 线性表', ['A', 'B', 'C', 'D']), 'D');
+  assert.equal(matchLabel('A', ['A', 'B', 'C', 'D']), 'A');
+  assert.equal(matchLabel('对、正确', ['对', '错']), '对');
+});
+
+test('a row without its label is not guessed', () => {
+  assert.equal(matchLabel('顺序存储结构', ['A', 'B', 'C', 'D']), null);
+  // 「B超检查」不是选项 B：没有标点时不认（宽松模式才认）
+  assert.equal(matchLabel('B超检查结果', ['A', 'B', 'C', 'D']), null);
+  assert.equal(matchLabel('B超检查结果', ['A', 'B', 'C', 'D'], { loose: true }), 'B');
+});
+
+test('rows are collected by label and the first hit wins', () => {
+  const lines = [
+    { text: '1、以下哪个是线性表', x: 100, y: 10, w: 300, h: 20 },
+    { text: 'A、顺序存储结构', x: 110, y: 40, w: 260, h: 20 },
+    { text: 'B、链式存储结构', x: 110, y: 74, w: 260, h: 20 },
+    { text: 'A、重复出现的干扰行', x: 110, y: 900, w: 200, h: 20 },
+  ];
+  const rows = rowsFromLines(lines, ['A', 'B', 'C', 'D']);
+  assert.equal(rows.size, 2);
+  assert.equal(rows.get('A').y, 40);
+  assert.equal(rows.get('B').y, 74);
+});
+
+test('a label OCR missed is inferred from the rows around it', () => {
+  const rows = new Map([
+    ['A', { text: 'A、一', x: 110, y: 40, w: 260, h: 20 }],
+    ['C', { text: 'C、三', x: 110, y: 108, w: 260, h: 20 }],
+  ]);
+  const filled = interpolateRow(rows, ['A', 'B', 'C', 'D']);
+  assert.equal(filled.get('B').y, 74);
+  assert.equal(filled.get('B').inferred, true);
+  // 间距整齐（40 -> 108，每格 34）时可以往外推一格
+  assert.equal(filled.get('D').y, 142);
+  assert.equal(filled.get('D').inferred, true);
+});
+
+test('a missing first label is extrapolated only when row spacing is tidy', () => {
+  const tidy = interpolateRow(new Map([
+    ['B', { text: 'B、二', x: 100, y: 70, w: 200, h: 20 }],
+    ['C', { text: 'C、三', x: 100, y: 104, w: 200, h: 20 }],
+    ['D', { text: 'D、四', x: 100, y: 138, w: 200, h: 20 }],
+  ]), ['A', 'B', 'C', 'D']);
+  assert.equal(tidy.get('A').y, 36);
+  // 行距忽大忽小（40 与 200）：不猜
+  const messy = interpolateRow(new Map([
+    ['B', { text: 'B、二', x: 100, y: 70, w: 200, h: 20 }],
+    ['C', { text: 'C、三', x: 100, y: 110, w: 200, h: 20 }],
+    ['D', { text: 'D、四', x: 100, y: 310, w: 200, h: 20 }],
+  ]), ['A', 'B', 'C', 'D']);
+  assert.equal(messy.has('A'), false);
+});
+
+test('several rows swallowed into one OCR line are split by label count', () => {
+  const merged = { text: 'B、香蕉 C、橘子 D、葡萄', x: 100, y: 40, w: 300, h: 60 };
+  const parts = splitMergedLine(merged, ['A', 'B', 'C', 'D']);
+  assert.equal(parts.length, 3);
+  assert.deepEqual(parts.map((x) => x.label), ['B', 'C', 'D']);
+  // 纵向上均分：行中心分别落在 1/6、3/6、5/6 处
+  assert.equal(parts[0].y + parts[0].h / 2, 50);
+  assert.equal(parts[1].y + parts[1].h / 2, 70);
+  assert.equal(parts[2].y + parts[2].h / 2, 90);
+  assert.equal(parts[0].merged, true);
+});
+
+test('a single labelled row is not treated as a merged line', () => {
+  assert.equal(splitMergedLine({ text: 'A、顺序表', x: 10, y: 10, w: 200, h: 20 }, ['A', 'B', 'C', 'D']), null);
+});
+
+test('labels are normalised before comparing', () => {
+  assert.equal(normLabel(' B '), 'B');
+  assert.equal(normLabel('对　'), '对');
 });
 
 // 异步用例（atest）统一等完再结算：以前这里在它们跑之前就结算并 exit，

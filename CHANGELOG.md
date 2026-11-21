@@ -1,3 +1,15 @@
+## 0.13.3 — 2026-11-21
+
+**照着用户真实做题的日志改的一轮：点选项点偏、抢鼠标键盘、擅开内置浏览器。**
+
+- **`desktop_pick`（新工具）**：给标签就点整行中线。OCR 会读出「A、顺序存储」这样的行，点行框垂直中心而不是文字里的某个像素，因此不会落到两行之间；OCR 把多行并成一行时按标签数纵向切分（`splitMergedLine`）；某个标签被吞掉时按相邻行距插值/外推并标 `inferred:true`，行距不整齐就不猜。支持多选、判断题、`dryRun`，并报告 `at`（屏幕坐标）、`rowsSeen`、`coordinates`。
+- **idle 自伤修复**：`win32.mjs` 的每一次合成输入（`sendVk` / `sendUnicode` / `screenClick` / `moveTo` / `setCursor` / `scrollAt` / `dragFromTo`）都会 `markOwnInput()`。以前只在工具入口标一次，工具自己后续的点击与“把光标还回去”会被判成用户操作，于是下一调用整段 `blocked`。
+- **更耐心的让路**：`quietMs` 默认 700 → 1500，`maxWaitMs` 默认 5000 → 20000；新增 `hostForegroundTyping()`——前台是 DSH 窗口且刚有键击时视为“用户在指挥台打字”，等待期间 HUD 显示「你在打字，我先等」，超时返回 `blocked:"user-typing"`（与 `user-active` 并列，提示语明确说不要再硬闯）。
+- **不抢用户界面**：`desktop_window` 对宿主窗口（同 pid 或标题/app 含 DeepSeek Harness）的 `minimize` / `close` 一律拒绝，并给出「把目标窗口调前台」的替代做法。
+- **`desktop_sequence` 的 `settle:true`**：click 步点完等该区域像素稳定（`primitives.waitSettled`，最多 3 秒，稳定判定 260ms），结果里带 `settled`；同时保留 `waitAfter`。
+- **SKILL.md**：新增「选项题用 desktop_pick」「网页先问用户用哪个浏览器（用户说‘我打开的网页’= 用他已登录的那个）」「永远不最小化 DSH」「被 user-typing 挡住不要硬闯」。
+- **测试**：unit 47 → 55（选项行识别、合并行切分、插值/外推、行距不整齐不猜）；smoke 21 → 22 工具；e2e 42 → 53（`pick-finds-option-rows`、`pick-clicks-row-centre`、`pick-rejects-label-not-in-choices`、`sequence-settle-waits-for-stable-area`、`host-window-cannot-be-minimized`、`host-window-cannot-be-closed`、`yield-defaults-are-patient`、`pick-is-an-input-tool` 等）。
+
 ## 0.13.2 — 2026-11-21
 
 **按 GitHub 上的反馈修的一轮（#6 #7 #8 #9 #10，含社区 PR #11 的贡献）。**

@@ -23,6 +23,7 @@ metadata:
 - 触发控件动作：`desktop_invoke{text:"确定"}`（按钮）、`{action:"toggle"}`（勾选框）
 - 打字：`desktop_type{window, text}`（默认真按键，不动用户剪贴板）
 - 填整个字段：`desktop_type{text, replace:true, field:"搜索"}`（走无障碍值，最快）
+- **选项题/列表题**：`desktop_pick{labels:["B"]}`（多选传 `["A","C"]`）
 
 ## 读文字：先 UIA，后 OCR
 
@@ -34,6 +35,24 @@ metadata:
 
 OCR 认错字（把「人工智能」读成「人工智角牛」）是 Windows 自带引擎的短板，**不要**拿 OCR 结果去匹配按钮文字，
 能用 `desktop_text` / 控件名字就别用 OCR。
+
+## 选项题：用 desktop_pick，别猜像素
+
+卷子、问卷、单选题、判断题都是「一列带标签的行」。给标签就行：
+
+```
+desktop_pick{window:"Edge", labels:["B"]}                 // 单选
+desktop_pick{window:"Edge", labels:["A","C"]}             // 多选
+desktop_pick{window:"Edge", labels:["对"]}                // 判断题
+desktop_pick{window:"Edge", labels:["B"], dryRun:true}    // 先看它认到哪一行
+```
+
+它做三件事：截窗口 → OCR 认出「A、/B．/C、」这类行 → **点这一行的垂直中心**（不是文字里的某个像素）。
+所以不会掉进两行之间的缝隙。OCR 把几行并成一行、或者吞掉某个标签时，它会按行距把缺的那一行补出来，
+并在结果里标 `inferred:true`；补不出来就老实说找不到（`ok:false`），不会乱点。
+
+> 真实教训：以前让模型自己从 OCR 碎片里挑 x/y，点偏到两行之间，题就漏了。
+> 现在只要标签对，点的是整行中线。
 
 ## 慢程序：launch → wait
 
@@ -48,7 +67,9 @@ desktop_wait{window, kind:"window", title:"导出完成"}
 
 ## 网页任务：先问用户用哪种浏览器
 
-网页**不要**直接上桌面点击。第一步调 `desktop_web{action:"open", url}`，**故意不带 mode**：
+网页**不要**直接上桌面点击，**也不要自己挑浏览器**。用户说「做我打开的网页上的题」时，
+意思就是**用他已经打开、已经登录的那个浏览器**——先问他，别擅自开内置浏览器（开了就得重新登录，用户会很恼火）。
+第一步调 `desktop_web{action:"open", url}`，**故意不带 mode**：
 它会返回 `needChoice:true` 加两个选项（`internal` 内置浏览器 / `screen` 屏幕上的浏览器），每个选项都带 `good`（优点）/ `bad`（缺点）/ `bestFor`。
 
 **问用户时要把两边的优缺点都摆出来，让用户自己选**，不要替他决定、也不要只报一个方案。照这个格式说：
@@ -99,6 +120,7 @@ desktop_wait{window, kind:"window", title:"导出完成"}
 ## 边界
 
 - 只在 Windows 上工作，其它平台 `desktop_doctor` 会直接说明。
+- **永远不关、也不最小化 DeepSeek Harness 自己的窗口**：用户可能正在同一个窗口里打字指挥你。需要腾地方就让目标窗口到前台（`desktop_window{action:"activate"}`），不许把用户界面藏起来。
 - 锁屏、UAC 提权确认这类系统安全界面一律拒绝操作。
 - 需要窗口能拿到前台；被系统拒绝时退回后台消息点击（部分程序不响应）。
 - 每次操作都记进 `desktop_log`，排查「它到底点了哪」先看这个。
@@ -110,6 +132,7 @@ desktop_wait{window, kind:"window", title:"导出完成"}
 
 - `evidence: {channel, how, trusted}` — 这次判断的依据：`uia`（读控件文字，最准）、`ocr`（截图识字，可能有错字）、`pixels`（按坐标点，靠画面比对）、`printwindow`（窗口自己渲染的画面）。`trusted:"low"` 表示是屏幕像素，窗口被挡住时可能看错，必要时先用 `desktop_capture{window}` 复核。
 - `yielded: {waitedMs}` — 用户在动鼠标键盘，工具等了他这么久才动手。出现这个说明“不打断”生效了，不是错误。
+- `blocked:"user-typing"` / `blocked:"user-active"` — 用户正在打字或动鼠标，这次什么都没做。**不要**紧接着重试、更不要加 `yieldToUser:false` 硬闯：等用户发话再做。默认耐心值是「停手 1.5 秒」+「最多等 20 秒」，用户犹豫一下不算打扰。
 - `verified:false` + `warn` — 字符发出去了，但读不回输入框（读到空或读到别的控件）。**这不是失败**：用 `desktop_capture` 看一眼再决定要不要重打；只有 `ok:false` 才是真的没做到。
 
 ## 出问题时先要报告
