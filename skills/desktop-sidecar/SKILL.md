@@ -36,6 +36,36 @@ metadata:
 OCR 认错字（把「人工智能」读成「人工智角牛」）是 Windows 自带引擎的短板，**不要**拿 OCR 结果去匹配按钮文字，
 能用 `desktop_text` / 控件名字就别用 OCR。
 
+## 网页里的元素：desktop_page（比 OCR 准，也不猜坐标）
+
+浏览器（Edge/Chrome）有时会把整张页面暴露给 Windows 无障碍。先试一次：
+
+```
+desktop_page{window:"Edge"}                    // 列出元素：角色 / 名字 / 该点的中心点 at
+desktop_page{window:"Edge", query:"提交"}       // 只看名字里带“提交”的
+desktop_page{window:"Edge", click:"提交答案"}    // 直接点这个元素（先 dryRun 看它要点的名字对不对）
+```
+
+`at` 已经是**屏幕像素**的元素中心，要自己点时直接 `desktop_click{screenX:at.x, screenY:at.y}`。
+页面没暴露无障碍时它会回 `page-not-exposed` 并给出两条替代路：让用户用 `--force-renderer-accessibility` 重开浏览器，
+或退回 `desktop_pick`（选项行）/ `desktop_click{text}`（按文字点）。
+
+`desktop_click{name:"提交答案"}` 也走同一条路：控件树里找不到时会改按页面元素表匹配，按元素中心点。
+
+## 坐标点击：它会先问系统“这一点是谁”
+
+`desktop_click{x,y}` / `{screenX,screenY}` 在点之前会做一次命中测试，结果在返回里：
+
+| 返回字段 | 意思 | 你该做什么 |
+| --- | --- | --- |
+| `hit` | 这一点的角色 / 名字 / 矩形 / 能做什么 | 先看它是不是你要的那个控件 |
+| `snapped:true` + `askedAt` | 你给的坐标被吸附到了控件的保证可点中心 | 不用管，这是好事 |
+| `blankPoint:true` | 这一点是空白（只有窗口/页面本身，没有控件） | 别再加偏移硬试：改用 `desktop_pick` / `desktop_click{text}` / `desktop_page` |
+| `containerPoint:true` | 命中的是一大块容器（整页、面板） | 同 `blankPoint`，要元素级精度就用 `desktop_page` |
+
+`dryRun:true` 只算不点，返回里同样有 `hit` / `snapped` / `blankPoint`——**点偏了先 dryRun 看一眼**，比连点十次强。
+`snap:"off"` 关闭吸附（确实要点像素本身时用）。
+
 ## 选项题：用 desktop_pick，别猜像素
 
 卷子、问卷、单选题、判断题都是「一列带标签的行」。给标签就行：

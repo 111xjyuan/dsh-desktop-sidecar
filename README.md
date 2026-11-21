@@ -48,8 +48,9 @@ desktop_invoke   → 直接触发控件（不移动鼠标、不需要窗口在�
 desktop_text     → 精确读窗口或输入框里的文字（UIA 文本，不是 OCR 猜的；读不到才退回 OCR）
 desktop_read     → 窗口里写了什么（离线 OCR，带坐标）
 desktop_capture  → 截图：直接作为图片返回，带坐标尺 + 缩放契约，画面没变就不重复发
-desktop_click    → 点控件（ref / 名字 / 编号）/ 点文字 / 点坐标（点前查遮挡、点后像素+控件树双校验、点完把鼠标和前台还给你）
+desktop_click    → 点控件（ref / 名字 / 编号）/ 点文字 / 点坐标（点前先问系统“这一点是谁”、真控件吸附到它的可点中心、空白点会明说；点后像素+控件树双校验、点完把鼠标和前台还给你；dryRun 可以先算后点）
 desktop_pick     → 选项题专用：给标签（A/B/C/D、对/错）就点整行中线，不再猜像素
+desktop_page     → 读网页里的元素（无障碍）：名字 / 矩形 / 该点的中心点，按元素点而不是按像素
 desktop_sequence → 批量：一次调用跑多步（dryRun / stopOnError / Esc 中止；点击可加 settle:true 等画面稳定）
 desktop_type     → 输入文字（能用 ValuePattern 就直接写值；否则真按键（Unicode），都不占你的剪贴板）
 desktop_key      → 按键 / 组合键
@@ -109,6 +110,16 @@ desktop_doctor   → 环境自检（平台 / DPI / 多屏 / OCR / 前台锁 / �
 - 点击/写值后立即清缓存，避免读到动作前的旧树。
 
 ## 更新记录
+
+### 0.13.4（点得准：先问系统这一点是谁）
+
+- `desktop_click` 坐标点击前做 UIA 命中测试：返回 `hit`（角色/名字/矩形/可点中心），
+  真控件自动吸附到它的可点中心（`snapped:true` + `askedAt`），大容器返回 `blankPoint:true` 明说这是空白；
+  点一下没反应但那里确实是控件时，改点控件中心补一次。
+- 新工具 `desktop_page`：无障碍读网页元素（名字/矩形/中心点），`desktop_page{click:"..."}` 直接点元素；
+  页面没开无障碍时返回 `page-not-exposed` 并给出替代方案（`desktop_pick` / `desktop_click{text}`）。
+- `desktop_click{name}` 在控件树里找不到时会改按网页元素表匹配，按元素中心点。
+
 ### 0.13.3（照着真实考试日志改的一轮：点选项、别抢键鼠、先问浏览器）
 
 - **点选项不再靠猜像素**：新增 `desktop_pick{labels:["B"]}`。它截窗口、用 OCR 认出「A、」「B．」「对、」这类带标签的行，然后**点这一行的垂直中心**——所以不会点到两行之间的空白。OCR 把几行并成一行时按标签个数纵向切分；漏掉某个标签时按行距补出来并标 `inferred:true`，补不出来就老实说找不到。支持多选（`labels:["A","C"]`）、判断题（`labels:["对"]`）、`dryRun` 先看它认到哪一行。

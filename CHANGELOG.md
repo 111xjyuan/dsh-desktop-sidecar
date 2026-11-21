@@ -1,3 +1,23 @@
+## 0.13.4 — 2026-11-21
+
+点得准，是这一版唯一的目标（参考 windows-mcp / UIAutomation 的做法：点元素，不点像素）。
+
+- **点击前先问系统「这一点是谁」**（UIA 命中测试 `AutomationElement.FromPoint`）：坐标点击会先做一次体检，
+  结果放在 `hit` 里（角色 / 名字 / 矩形 / 能不能点 / 支持哪些动作）。
+- **真控件自动吸附**：命中的是 Button / CheckBox / RadioButton / Tab / Hyperlink / ListItem / MenuItem / ComboBox / Edit
+  这类真控件时，点它的**保证可点中心**，而不是你算出来的那个像素（`snapped:true` + `askedAt` 告诉你原来算的是哪儿）。
+  只对控件吸附、且控件不能大到占半屏——Chromium 常把整页做成带 Invoke 的 Group，对它吸附会把点击送到页面正中。
+- **空白点会说出来**：命中大容器（窗口/页面本身）时返回 `blankPoint:true`，不再默默点空白；
+  正文/编辑器区域单独识别成文本区，不会误报空白。
+- **点不动就补一次控件中心**：第一下没反应、但命中测试说那里其实是控件时，改点控件中心再试（`snapped:true`）。
+- **新工具 `desktop_page`**：通过 Windows 无障碍读到网页里的元素（角色/名字/矩形/中心点），
+  ``desktop_page{click:"Learn more"}`` 一句话点元素，或者把返回的 `at` 交给 `desktop_click{screenX,screenY}`。
+  页面没暴露无障碍时，明确回 `page-not-exposed` 并给出两条替代路（开 `--force-renderer-accessibility`，或 `desktop_pick` / `desktop_click{text}`）。
+- **`desktop_click{name}` 也能点网页元素**：控件树找不到时，自动改按页面元素表匹配名字，取元素中心点（不猜坐标）。
+- **`desktop_pick` 零结果会再读一次**：刚敲完字/刚翻页时窗口可能还没重绘，OCR 读到旧画面；现在等 320ms 重读，而不是直接说“屏幕上没有选项”。
+- **修 `desktop_pick` 记的最近点击点**：改回屏幕坐标（`desktop_type` 靠它“先点进去再打字”，之前存窗口相对坐标会点偏）。
+- `desktop_click` 新增 `snap:"auto"|"off"`；`dryRun` 现在也会回 `hit` / `snapped` / `blankPoint`，可以先算后点。
+
 ## 0.13.3 — 2026-11-21
 
 **照着用户真实做题的日志改的一轮：点选项点偏、抢鼠标键盘、擅开内置浏览器。**

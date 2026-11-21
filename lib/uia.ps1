@@ -1,5 +1,5 @@
 ﻿param(
-  [Parameter(Mandatory = $true)][string]$Hwnd,
+  [string]$Hwnd = '',
   [int]$Depth = 3,
   [int]$Max = 80,
   [string]$Action = '',
@@ -10,20 +10,24 @@
   [switch]$Focused,
   [switch]$FocusInfo,
   [switch]$Find,
-  [switch]$Text
+  [switch]$Text,
+  [string]$Point = '',
+  [switch]$Page
 )
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+try { Add-Type -AssemblyName WindowsBase } catch { }
 
 $AE = [System.Windows.Automation.AutomationElement]
 $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 $h = [IntPtr][int64]$Hwnd
-$root = $AE::FromHandle($h)
-if ($null -eq $root) { '{"ok":false,"error":"FromHandle returned null"}'; exit 0 }
+$root = $null
+if ($Hwnd -ne '' -and $Hwnd -ne '0') { $root = $AE::FromHandle($h) }
+if ($null -eq $root -and $Point -eq '') { '{"ok":false,"error":"FromHandle returned null"}'; exit 0 }
 
 $out = New-Object System.Collections.ArrayList
 $cands = New-Object System.Collections.ArrayList
@@ -62,6 +66,89 @@ function ActionPatternName($action) {
 }
 
 $wantPat = ActionPatternName $Action
+
+# ---- 屏幕坐标落在谁身上：点击前做一次命中测试（空白区 / 控件 / 可点中心） ----
+if ($Point -ne '') {
+  $pr = @{ ok = $false; role = ''; name = ''; cls = ''; autoId = ''; rect = $null; clickable = $null; offscreen = $false; patterns = @() }
+  try {
+    $parts = $Point.Split(',')
+    $pt = New-Object System.Windows.Point([double]$parts[0], [double]$parts[1])
+    $el = $AE::FromPoint($pt)
+    if ($null -eq $el) { $pr.error = 'nothing under this point' }
+    else {
+      try { $pr.role = ([string]$el.Current.ControlType.ProgrammaticName) -replace '^ControlType\.', '' } catch { }
+      try { $pr.name = [string]$el.Current.Name } catch { }
+      try { $pr.cls = [string]$el.Current.ClassName } catch { }
+      try { $pr.autoId = [string]$el.Current.AutomationId } catch { }
+      try {
+        $bb = $el.Current.BoundingRectangle
+        if (-not [double]::IsInfinity($bb.Width)) { $pr.rect = @{ x = [int]$bb.X; y = [int]$bb.Y; w = [int]$bb.Width; h = [int]$bb.Height } }
+      } catch { }
+      try { $pr.offscreen = [bool]$el.Current.IsOffscreen } catch { }
+      try { $cp = $el.GetClickablePoint(); $pr.clickable = @{ x = [int]$cp.X; y = [int]$cp.Y } } catch { }
+      try { $pr.patterns = Get-Patterns $el } catch { }
+      $pr.ok = $true
+    }
+  } catch { $pr.error = $_.Exception.Message }
+  ($pr | ConvertTo-Json -Depth 5 -Compress)
+  exit 0
+}
+
+# ---- 网页内容（无障碍树）：浏览器开了无障碍时 Document 下就是整页元素 ----
+if ($Page) {
+  $pg = @{ ok = $false; title = ''; role = ''; elements = @(); count = 0; text = '' }
+  try { $pg.title = [string]$root.Current.Name } catch { }
+  $doc = $null
+  try {
+    $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+    foreach ($c in $all) {
+      $ct = ''
+      try { $ct = [string]$c.Current.ControlType.ProgrammaticName } catch { }
+      if ($ct -eq 'ControlType.Document') { $doc = $c; break }
+    }
+  } catch { }
+  if ($null -eq $doc) {
+    $pg.error = 'page-not-exposed'
+    $pg.hint = 'this browser does not expose its web page to UI Automation right now. Use the OCR path (desktop_pick / desktop_read / desktop_click with text), or start the browser with --force-renderer-accessibility and try again.'
+    ($pg | ConvertTo-Json -Depth 5 -Compress)
+    exit 0
+  }
+  try { $pg.role = ([string]$doc.Current.ControlType.ProgrammaticName) -replace '^ControlType\.', '' } catch { }
+  $els = New-Object System.Collections.ArrayList
+  try {
+    $kids = $doc.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+    foreach ($c in $kids) {
+      if ($els.Count -ge $Max) { break }
+      $role = ''
+      try { $role = ([string]$c.Current.ControlType.ProgrammaticName) -replace '^ControlType\.', '' } catch { }
+      $nm = ''
+      try { $nm = [string]$c.Current.Name } catch { }
+      $bb = $null
+      try {
+        $b = $c.Current.BoundingRectangle
+        if (-not [double]::IsInfinity($b.Width)) { $bb = @{ x = [int]$b.X; y = [int]$b.Y; w = [int]$b.Width; h = [int]$b.Height } }
+      } catch { }
+      if ($null -eq $bb) { continue }
+      if ($bb.w -le 0 -or $bb.h -le 0) { continue }
+      $off = $false
+      try { $off = [bool]$c.Current.IsOffscreen } catch { }
+      $pats = @()
+      try { $pats = Get-Patterns $c } catch { }
+      [void]$els.Add(@{ role = $role; name = $nm; rect = $bb; offscreen = $off; patterns = $pats })
+    }
+  } catch { }
+  $pg.elements = $els.ToArray()
+  $pg.count = $els.Count
+  if ($Text) {
+    try {
+      $tp = $null
+      if ($doc.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref]$tp)) { $pg.text = [string]$tp.DocumentRange.GetText(-1) }
+    } catch { }
+  }
+  $pg.ok = $true
+  ($pg | ConvertTo-Json -Depth 6 -Compress)
+  exit 0
+}
 
 # ---- 直接写值（ValuePattern.SetValue）：最快、不动剪贴板、不抢焦点 ----
 if ($Action -eq 'setvalue') {

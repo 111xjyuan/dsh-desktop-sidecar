@@ -12,6 +12,7 @@ import { readLog, clearLog } from '../lib/actions-log.mjs';
 import { explain, shortNotice } from '../lib/humanize.mjs';
 import { buildTuning } from '../lib/env.mjs';
 import { normLabel, matchLabel, rowsFromLines, interpolateRow, splitMergedLine } from '../lib/pick.mjs';
+import { classifyHit, worthRetry } from '../lib/hit.mjs';
 
 let passed = 0;
 const fails = [];
@@ -330,6 +331,49 @@ atest('panel closes after a real idle period', () => {
   assert.equal(d.action, 'close');
 });
 
+
+// ---- 命中测试分类（desktop_click 不敢乱吸附的原因）------------------------
+test('a real button is snapped to its clickable centre', () => {
+  const c = classifyHit({ role: 'Button', name: '提交', patterns: ['Invoke'], rect: { x: 300, y: 200, w: 90, h: 32 }, clickable: { x: 345, y: 216 } }, 1920 * 1032);
+  assert.deepEqual(c.snap, { x: 345, y: 216 });
+  assert.equal(c.blank, false);
+});
+
+test('a whole-page group is never snapped (that is the "clicked empty space" bug)', () => {
+  const c = classifyHit({ role: 'Group', name: '页面', patterns: ['Invoke'], rect: { x: 0, y: 0, w: 1900, h: 1000 }, clickable: { x: 950, y: 500 } }, 1920 * 1032);
+  assert.equal(c.snap, null);
+  assert.equal(c.container, true);
+  assert.equal(c.blank, true);
+});
+
+test('a page-sized pane is reported as blank, a text document is not', () => {
+  const pane = classifyHit({ role: 'Pane', patterns: [], rect: { x: 0, y: 0, w: 1900, h: 1000 } }, 1920 * 1032);
+  assert.equal(pane.blank, true);
+  const doc = classifyHit({ role: 'Document', patterns: ['TextPattern'], rect: { x: 0, y: 0, w: 1900, h: 1000 } }, 1920 * 1032);
+  assert.equal(doc.blank, false);
+  assert.equal(doc.textArea, true);
+  assert.equal(doc.snap, null);
+});
+
+test('a control that is bigger than a fifth of the window is not snapped', () => {
+  const c = classifyHit({ role: 'ListItem', patterns: ['SelectionItem'], rect: { x: 0, y: 0, w: 1200, h: 600 }, clickable: { x: 600, y: 300 } }, 1920 * 1032);
+  assert.equal(c.smallEnough, false);
+  assert.equal(c.snap, null);
+});
+
+test('a hairline control is not snapped', () => {
+  const c = classifyHit({ role: 'Button', patterns: ['Invoke'], rect: { x: 10, y: 10, w: 2, h: 16 }, clickable: { x: 11, y: 18 } }, 1920 * 1032);
+  assert.equal(c.tiny, true);
+  assert.equal(c.snap, null);
+});
+
+test('the retry rule refuses documents and containers', () => {
+  assert.equal(worthRetry({ role: 'Button', clickable: { x: 1, y: 1 } }), true);
+  assert.equal(worthRetry({ role: 'Button', clickable: { x: 1, y: 1 }, container: true }), false);
+  assert.equal(worthRetry({ role: 'Document', clickable: { x: 1, y: 1 } }), false);
+  assert.equal(worthRetry({ role: 'Edit', clickable: { x: 1, y: 1 } }), false);
+  assert.equal(worthRetry(null), false);
+});
 
 // ---- 选项行识别（desktop_pick 的核心逻辑）--------------------------------
 test('a labelled row is recognised by its label', () => {

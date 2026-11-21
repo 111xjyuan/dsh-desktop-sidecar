@@ -23,7 +23,7 @@ function skipped(name, why) { skip++; results.push('SKIP ' + name + ' (' + why +
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------- 1. 注册表与自检 ----------
-check('registry-22-tools', tools.size === 22, { size: tools.size });
+check('registry-23-tools', tools.size === 23, { size: tools.size });
 const shapeless = [...tools.values()].filter((t) => !t.description || !t.parameters);
 check('registry-every-tool-documented', shapeless.length === 0, shapeless.map((t) => t.name));
 const doc = await call('desktop_doctor', {});
@@ -82,10 +82,12 @@ else {
 
   // 选项题：给标签就点整行中心（真实考试里模型以前只能猜像素，结果点进两行之间的空白）
   const opts = 'A、苹果\nB、香蕉\nC、橘子\nD、葡萄';
+  await call('desktop_window', { window: W, action: 'activate' });
+  await delay(150);
   const ot = await call('desktop_type', { window: W, text: opts, yieldToUser: false });
   const pickDry = await call('desktop_pick', { window: W, labels: ['B'], dryRun: true, yieldToUser: false });
   const seen = (pickDry.rowsSeen || []).map((r) => r.label);
-  check('pick-finds-option-rows', ot.ok === true && ['A', 'B', 'C', 'D'].every((l) => seen.includes(l)), { seen, err: pickDry.error, saw: pickDry.saw });
+  check('pick-finds-option-rows', ot.ok === true && ['A', 'B', 'C', 'D'].every((l) => seen.includes(l)), { seen, err: pickDry.error, saw: pickDry.saw, typeOk: ot.ok, typed: ot.typed, typeErr: ot.error, blocked: ot.blocked, readBack: ot.readBack });
   const pickB = await call('desktop_pick', { window: W, labels: ['B'], yieldToUser: false });
   const pickAt = pickB.picks && pickB.picks[0] && pickB.picks[0].at;
   check('pick-clicks-row-centre', pickB.ok === true && !!pickAt && pickAt.y > 0, { picks: pickB.picks && pickB.picks.length, at: pickAt, err: pickB.error });
@@ -304,6 +306,48 @@ try { await call('desktop_window', { window: String((np && np.hwnd) || ''), acti
   // 一次调用一行：两次调用最多多出两行（以前一次点击会写 2~3 行）
   check('action-log-one-line-per-call', delta <= 2, { delta });
   check('action-log-reports-writable', after.writable === true, { writable: after.writable, dir: after.dir, hint: after.hint });
+}
+
+// ---------- 5f. 点击精度：命中测试 / 空白识别 / 网页元素 ----------
+{
+  const props = (n) => ((tools.get(n).parameters || {}).properties || {});
+    check('click-has-snap-switch', !!(props('desktop_click').snap && props('desktop_click').snap.type === 'string'), { has: !!(props('desktop_click').snap) });
+
+  // 找一个记事本（本轮的点击精度检查都在它身上做，不碰用户的文档）
+  const ws3 = await call('desktop_windows', {});
+  const np3 = (ws3.windows || []).find((w) => /notepad/i.test(w.app || ''));
+  if (!np3) {
+    skipped('click-hit-reports-control', 'no notepad window');
+    skipped('click-blank-point-warns', 'no notepad window');
+    skipped('click-text-area-not-blank', 'no notepad window');
+    skipped('page-lists-elements', 'no notepad window');
+    skipped('page-click-refuses-unknown-name', 'no notepad window');
+  } else {
+    if (np3.minimized) { await call('desktop_window', { window: String(np3.hwnd), action: 'restore' }); await delay(250); }
+
+    // 命中测试：窗口正中那一点到底是什么
+    const hitMid = await call('desktop_click', { window: String(np3.hwnd), fx: 0.5, fy: 0.5, dryRun: true, snap: 'auto' });
+    check('click-hit-reports-control',
+      !!(hitMid.hit && hitMid.hit.role && typeof hitMid.hit.role === 'string'),
+      { hit: hitMid.hit && hitMid.hit.role, err: hitMid.error });
+
+    // 标题栏那条横带不是控件 → 必须明确说“这里是空白”
+    const hitBlank = await call('desktop_click', { window: String(np3.hwnd), fx: 0.5, fy: 0.015, dryRun: true });
+    check('click-blank-point-warns', hitBlank.blankPoint === true, { blank: hitBlank.blankPoint, hit: hitBlank.hit && hitBlank.hit.role });
+
+    // 正文区域是有意义的输入区，不能被误判成空白
+    const hitText2 = await call('desktop_click', { window: String(np3.hwnd), fx: 0.5, fy: 0.55, dryRun: true });
+    check('click-text-area-not-blank', hitText2.blankPoint !== true, { blank: hitText2.blankPoint, hit: hitText2.hit && hitText2.hit.role });
+
+    // 网页元素表：有页面就列，没暴露就给出两条替代路（两种都算通过，但必须给话）
+    const page = await call('desktop_page', { window: String(np3.hwnd), max: 20 });
+    check('page-lists-elements',
+      !!(page.ok === true && Array.isArray(page.elements)) || (page.ok === false && /page-not-exposed|does not expose/.test(String(page.error || '') + String(page.hint || ''))),
+      { ok: page.ok, n: (page.elements || []).length, err: page.error });
+
+    const unknown = await call('desktop_page', { window: String(np3.hwnd), click: 'this-name-cannot-exist-xyz', dryRun: true });
+    check('page-click-refuses-unknown-name', unknown.ok === false && !!unknown.error, { ok: unknown.ok, err: unknown.error });
+  }
 }
 
 // ---------- 自检报告：给用户一个能直接复制发过来的东西 ----------
