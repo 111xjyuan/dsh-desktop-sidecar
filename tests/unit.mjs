@@ -8,7 +8,7 @@ import { encodePng } from '../lib/png.mjs';
 import { runSequence } from '../lib/sequence.mjs';
 import { panelDecision } from '../lib/panel.mjs';
 import { beginCall, endCall, logTool } from '../lib/activity.mjs';
-import { readLog } from '../lib/actions-log.mjs';
+import { readLog, clearLog } from '../lib/actions-log.mjs';
 import { explain, shortNotice } from '../lib/humanize.mjs';
 import { buildTuning } from '../lib/env.mjs';
 
@@ -270,6 +270,7 @@ test('panel closes after a real idle period', () => {
 // ---- 操作日志：一次工具调用只写一行 ----------------------------------------------
 // 以前各分支各记一笔，一次点击留下 2~3 行，看日志的人以为点了好几次。
 atest('branch logs of one call merge into a single entry', async () => {
+  clearLog(); // 日志有 500 行上限，先清空，否则“总数 +1”在满盘时永远不成立
   const before = readLog(1).total;
   beginCall('unit-check');
   const a = logTool('unit-check', { step: 'click', ms: 1 });
@@ -288,6 +289,7 @@ atest('branch logs of one call merge into a single entry', async () => {
 });
 
 atest('logs written outside a call still go straight to the file', async () => {
+  clearLog();
   const before = readLog(1).total;
   const r = logTool('unit-outside', { ok: true, tag: String(Math.random()) });
   assert.equal(r.buffered, undefined);
