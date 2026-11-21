@@ -192,6 +192,64 @@ try { await call('desktop_window', { window: String((np && np.hwnd) || ''), acti
   check('click-has-dry-run', !!props('desktop_click').dryRun, null);
 }
 
+// ---------- 5e. 线上 issue 的回归（#6 公式方向 / #7 屏幕点 / #8 raw 与小图提示 / #9 中断回执 / #10 OCR 坐标） ----------
+{
+  const props = (n) => ((tools.get(n).parameters || {}).properties || {});
+  // #7：不属于任何窗口的点（任务栏、托盘）必须能点，而且要先给个 dryRun 让人核对
+  const sp = await call('desktop_click', { screenX: 200, screenY: 200, dryRun: true, yieldToUser: false });
+  check('click-screen-point-dryrun',
+    !!(sp && sp.ok && sp.dryRun && sp.via === 'screen' && sp.at && sp.at.x === 200 && sp.at.y === 200),
+    { via: sp && sp.via, at: sp && sp.at, error: sp && sp.error });
+  check('click-screen-point-schema', !!(props('desktop_click').screenX && props('desktop_click').screenY), Object.keys(props('desktop_click')).length);
+
+  // #6：capture 的 note 必须说乘法（scale = 窗口像素/图像像素），写反就必然点偏
+  const capN = await call('desktop_capture', { image: false });
+  check('capture-note-multiplies-scale',
+    !!(capN && /imageX \* scale\.x/.test(String(capN.note || '')) && !/imageX\/scale\.x/.test(String(capN.note || ''))),
+    { note: String((capN && capN.note) || '').slice(0, 120) });
+
+  // #8a：raw:true 返回干净图（标尺不画进去）
+  const capRaw = await call('desktop_capture', { raw: true, image: false });
+  check('capture-has-raw-switch', !!(props('desktop_capture').raw && capRaw && capRaw.ok !== false), { ok: capRaw && capRaw.ok });
+
+  // #10：OCR 行坐标不能再被二次归一化 —— 行高要是“真实文字高度”，不是 /scale 之后的值
+  const ws3 = await call('desktop_windows', {});
+  const cand3 = (ws3.windows || []).find((w) => !w.minimized && w.bounds && w.bounds.width > 320 && w.bounds.height > 240);
+  if (cand3) {
+    const rd3 = await call('desktop_read', { window: String(cand3.hwnd), limit: 40 });
+    const lines3 = (rd3 && rd3.lines) || [];
+    const maxH = lines3.reduce((a, l) => Math.max(a, Number(l.h) || 0), 0);
+    const rect3 = (rd3 && rd3.rect) || {};
+    const maxRight = lines3.reduce((a, l) => Math.max(a, (Number(l.x) || 0) + (Number(l.w) || 0)), 0);
+    check('ocr-line-height-is-real',
+      lines3.length > 0 && maxH >= 10 && maxRight <= (rect3.w || 1e9) + 2,
+      { maxH, maxRight, rectW: rect3.w, n: lines3.length });
+    // #8b：小图读字要主动提示分辨率不足，而不是直接给错字
+    const rdSmall = await call('desktop_read', { window: String(cand3.hwnd), maxDim: 400, limit: 3 });
+    check('ocr-small-image-warns',
+      !!(rdSmall && (rdSmall.warning || (rdSmall.imageWidth && rdSmall.imageWidth >= 1000))),
+      { warning: rdSmall && rdSmall.warning, imageWidth: rdSmall && rdSmall.imageWidth });
+  } else {
+    skipped('ocr-line-height-is-real', 'no suitable window');
+    skipped('ocr-small-image-warns', 'no suitable window');
+  }
+
+  // #9：被指挥台打断时，回执要写、steer.txt 要清 —— 否则面板永远显示“还躺着”
+  const steerMod = await import('../lib/steer.mjs');
+  steerMod.writeSteer('第 7 题漏了，先补上');
+  await delay(150);
+  const seq = await call('desktop_sequence', { steps: [{ action: 'wait', ms: 60 }], yieldToUser: false });
+  check('steer-interrupt-returns-command',
+    !!(seq && seq.steer && seq.steer.command),
+    { interrupted: seq && seq.interrupted, steer: seq && seq.steer, err: seq && seq.error });
+  const rec = steerMod.readConsumed();
+  check('steer-interrupt-writes-receipt',
+    !!(rec && /第 7 题/.test(String(rec.command || '')) && Number(rec.at) > 0),
+    { consumed: rec });
+  const left = steerMod.readSteer();
+  check('steer-interrupt-clears-file', !(left && left.command), { left: left && left.command });
+}
+
 // ---------- 5d. 操作日志：一次调用写一条，且能读回来 ----------
 {
   const before = await call('desktop_log', { limit: 1 });
@@ -200,7 +258,19 @@ try { await call('desktop_window', { window: String((np && np.hwnd) || ''), acti
   const after = await call('desktop_log', { limit: 5 });
   const delta = Number(after.total || 0) - Number(before.total || 0);
   const newest = (after.entries || [])[0];
-  check('action-log-records-every-call', delta >= 1 && !!newest && !!newest.tool, { before: before.total, after: after.total, delta, newest: newest && newest.tool });
+  // 日志有 500 行上限，满了之后总数不再增长，所以既要 delta>=1 也要接受“已满但最新一条是刚写的”
+  // 日志里的 ts 是本地时间串（“2026-11-21 05:50:42”），也兼容毫秒数
+  const stamp = newest && (newest.ts || newest.at);
+  let stampMs = NaN;
+  if (typeof stamp === 'number') stampMs = stamp;
+  else if (stamp) {
+    const t = String(stamp);
+    stampMs = Date.parse(/[Zz]|[+-]\d\d:?\d\d$/.test(t) ? t : t.replace(' ', 'T') + 'Z');
+  }
+  const fresh = !(Number.isFinite(stampMs) && stampMs < Date.now() - 300000);
+  check('action-log-records-every-call',
+    !!(newest && newest.tool && fresh && (delta >= 1 || Number(after.total || 0) >= 500)),
+    { before: before.total, after: after.total, delta, newest: newest && newest.tool, fresh });
   // 一次调用一行：两次调用最多多出两行（以前一次点击会写 2~3 行）
   check('action-log-one-line-per-call', delta <= 2, { delta });
   check('action-log-reports-writable', after.writable === true, { writable: after.writable, dir: after.dir, hint: after.hint });
