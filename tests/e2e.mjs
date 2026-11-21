@@ -333,6 +333,7 @@ try { await call('desktop_window', { window: String((np && np.hwnd) || ''), acti
   const np3 = (ws3.windows || []).find((w) => /notepad/i.test(w.app || ''));
   if (!np3) {
     skipped('click-hit-reports-control', 'no notepad window');
+    skipped('click-finds-control-by-tree', 'no notepad window');
     skipped('click-blank-point-warns', 'no notepad window');
     skipped('click-text-area-not-blank', 'no notepad window');
     skipped('page-lists-elements', 'no notepad window');
@@ -345,6 +346,24 @@ try { await call('desktop_window', { window: String((np && np.hwnd) || ''), acti
     check('click-hit-reports-control',
       !!(hitMid.hit && hitMid.hit.role && typeof hitMid.hit.role === 'string'),
       { hit: hitMid.hit && hitMid.hit.role, err: hitMid.error });
+
+    // WinUI3（Win11 记事本）的 FromPoint 只回一大块 Group：靠窗口的控件树才认得出按钮。
+    // 这条锁住“翻树找控件”——不然只能靠像素猜。
+    await call('desktop_window', { window: String(np3.hwnd), action: 'activate' });
+    await delay(260);
+    const tr3 = await call('desktop_tree', { window: String(np3.hwnd), max: 80 });
+    const btn3 = (tr3.elements || []).find((e) => /Button/i.test(e.role || '') && e.rect && e.rect.w > 10 && e.rect.h > 8);
+    let treeHit = null;
+    if (btn3) {
+      treeHit = await call('desktop_click', {
+        screenX: btn3.rect.x + Math.round(btn3.rect.w / 2),
+        screenY: btn3.rect.y + Math.round(btn3.rect.h / 2),
+        dryRun: true,
+      });
+    }
+    check('click-finds-control-by-tree',
+      !!(treeHit && treeHit.hit && /Button/i.test(treeHit.hit.role || '') && treeHit.snapped === true),
+      { target: btn3 && (btn3.role + ':' + btn3.name), hit: treeHit && treeHit.hit && treeHit.hit.role, snapped: treeHit && treeHit.snapped, err: treeHit && treeHit.error });
 
     // 标题栏那条横带不是控件 → 必须明确说“这里是空白”
     const hitBlank = await call('desktop_click', { window: String(np3.hwnd), fx: 0.5, fy: 0.015, dryRun: true });
